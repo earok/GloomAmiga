@@ -1,0 +1,163 @@
+
+Hi guys!
+
+Here are the questions from The One magazine...
+
+Just add your bits where-ever, and re-save the whole thing as 'theone'.
+
+They want to fill up 4 pages, so try to waffle on as much as possible!
+
+They also want any extra artwork we've got, so if you can send up something/
+anything, please do.
+
+Can you try to get this done within a day or two? It's going in the next issue,
+so they want it back as soon as possible.
+
+We've just got 'Dark Forces' for the PC, and it's pretty disappointing, almost
+a direct copy of Doom, but you can also look up and down a (little) bit. The
+mazes are big and confusing, with lots of dead ends, and very little reward
+for getting to switches. I'd rather play Gloom!
+
+Gloom is going well (although I've been slacking off a bit). Should have the
+gothic section done by Monday, so I'll send you a new one then.
+
+See ya,
+
+  Mark
+
+;----------------------------------------------------------------------------;
+
+From theone@cix.compulink.co.ukThu Mar 16 09:54:23 1995
+Date: Wed, 15 Mar 95 15:01 GMT
+From: Andy Nuttall <theone@cix.compulink.co.uk>
+To: acid@iconz.co.nz
+Subject: Quezzies
+
+Hi Mark,
+
+1: Gloom. That sounds a bit like Doom, doesn't it?
+
+The name sort of started out as a joke, just something to call
+the project while we were working on it. By the time we had to settle on
+a 'real' name, we threw around some pretty weird ones (Gorefest '95,
+Bloodbath etc.) but wound up sticking with Gloom, probably because we were
+all used to it.
+
+2: Is it meant to be as close a version as possible?
+
+When we started on the game, there were already quite a few demos
+around by people trying to 'do Doom'. The trouble was, none of them seemed
+to involve shooting anything which, when it comes down to it, is why people
+play Doom (it is a game, remember folks!). So we decided to do a version
+which placed the emphasis on the actual game, not the scenery. In fact, the
+monster drawing code was the first bit done...if that'd proved too slow, we
+probably would have abandoned the whole thing.
+
+So, I guess Gloom's trying to be a close version in that it involves wiping
+out shit-loads of monsters, but not in terms of walking around complex scenery.
+
+We've also tried to give it a whole different look from Doom. Kurt and Hans
+have consciously tried to avoid the Doom look which all the clones
+seem intent on capturing. Also, the game is divided up into distinct graphic
+styles, so instead of the 'mix-and-match' approach to graphics you see in doom
+clones (and even Doom itself), the graphics in Gloom actually go through
+abrupt changes, which alters the mood of the game entirely.
+
+3: Have you seen any other Doom 'clones' on the Amiga?
+
+Heaps of them! But only one, called 'Fears' I think, where you can
+actually shoot things. It's weird, like Amiga programmers think Doom is all
+about walking around buildings, twiddling your thumbs, going 'ahhh, that's a
+nice wall'.
+
+4: How long have you been working on it?
+
+I'd been playing around with the game engine for a couple of months
+before coming up with the one used now. Since then, it's been about 3 months
+of solid work, and I guess there's another month or so to go.
+
+5: When you started Gloom, did you have any idea how it would turn out?
+
+No way! From the beginning we wanted it to be an action game, but there was
+always this nagging thought that it'd end up a shoot-one-monster-at-a-time kind
+of thing. But I rememeber sitting down with Kurt one day, when everything was
+more or less up and running and sticking 20 odd monsters in a room...WOW!
+You'd walk in there, start firing, and the next thing you knew there were arms
+and legs and torsos and intestines and stuff flying EVERYWHERE!
+So, the end result has pretty much exceeded my expectations. And it's got
+nice walls.
+
+6: Talk about some of the problems you came across when writing it.
+
+Well, the texture mapping was a bit of a headache. I tried 3 completely
+different approaches before coming up with the one used now. The technique
+we use is actually pretty slow for drawing an 'empty' scene, but it allows you
+to draw lots of monsters with very little slowdown.
+
+The depth sorting stuff also proved challenging(!). This involves deciding
+which walls are in front and which are behind, which sounds pretty simple
+(well it did to me), but is actually a major bastard.
+
+Finally, there were problems with mathematical accuracy. Like, you'd try to
+draw a wall with straight horizontal lines on it, stick it in the game, and
+the lines would come out all zig-zaggy. I cleaned this up to a large extent,
+but it's still noticable in some places. That blows me away about Doom...the
+whole thing is done so bloody cleanly. There's no pixels out of place or
+anything!
+
+7: The demo we have is quite big. How big will the final game be?
+
+I'm not sure. I'm knocking out mazes at the rate of about 2 a day right now,
+so it depends on when I get bored and the mazes start looking the same. That's
+probably a good time to stop. But the way things are going at the moment, I'd
+say there should be about 20+ mazes in there.
+
+8: Talking speed for a while: does the frame rate increase depending on what processor you have?
+   How about screen size/resolution
+
+Gloom is done in the infamous 'copper chunky' mode, and offers 2 resolutions -
+2 X 2 and 3 X 3. 2 X 2 mode allows for a window as tall as the screen, but only
+about half the width. 3 X 3 mode lets you have a full screen display.
+
+I've heard a lot of debate about doing stuff this way, but for me the decision
+came down to how to do it as fast as possible on a standard A1200. A lot of it
+comes down to personal taste...what I consider to be too slow, someone else
+might think is just fine. Still, you have to go with your instincts...
+
+A faster processor definitely makes the game smoother, but doesn't offer
+any different display modes.
+
+9: The two-player mode is a good innovation - but will there be a null modem
+   link-up too? That really works with Doom.
+
+I'm not sure...
+
+10: If the main code is assembler, is Blitz used at all?
+
+The map editor and heaps of little utility programs were done in Blitz, but
+there's no actual Blitz code in the game.
+
+11: The other people in Black Magic - have they done anything before? 
+
+Kurt, Hans, Kev and I first met while working on a game in Australia. The
+whole episode was a bit of a drama...we'd gone over to work for this rich guy
+who wanted to get into the games publishing biz, but things turned pretty ugly
+at the end. We actually finished the game, but nothing ever came of it...
+
+Kurt and Hans have also contributed graphics to some of Acid software's stuff -
+Guardian and SkidMarks 2, but apart from the OZ one, this has been their first
+complete game.
+
+Kev did the music and graphics on a game called 'Lunar-C' which was on the
+CD32 version of Overkill...but that was before we met him.
+
+12: Do you anticipate any trouble from id Software?
+
+id software? Shouldn't that be ego software? Nahhh...I'm sure they're too
+busy on the 3DOSXstationTigercatreality conversion to be reading THE ONE.
+
+13: Er, and the final question is: do you have anything more to say?
+
+Oh yeah, and if you have any screen shots, or some demos of other levels/enemies/characters
+   that we could use as decorations would be cool too.
+

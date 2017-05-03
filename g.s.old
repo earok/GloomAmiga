@@ -1,0 +1,1646 @@
+
+focshft	equ	6
+grdshft	equ	8
+darkshft	equ	7
+maxz	equ	16<<darkshft
+
+	rsreset
+	;
+	;vertical draw data
+	;
+vd_z	rs.w	1	;current Z
+vd_pal	rs.w	1	;palette# (0...15)
+vd_y	rs.w	1
+vd_h	rs.w	1
+vd_data	rs.l	1	;pointer to data to draw
+vd_ystep	rs.l	1
+	;
+vd_size	rs.b	0
+
+	rsreset
+	;texture
+	;
+te_wshift	rs.w	1	;width shift
+te_hshift	rs.w	1	;height shift
+te_wand	rs.w	1
+te_hand	rs.w	1
+	;
+te_size	rs.b	0
+
+	rsreset
+	;
+	;vertical list...array really #:^)
+	;
+va_lx	rs.w	1
+va_lz	rs.w	1
+va_rx	rs.w	1
+va_rz	rs.w	1
+va_y	rs.w	1
+va_h	rs.w	1
+va_scale	rs.l	1
+va_texture	rs.l	1
+	;
+va_size	rs.b	0
+
+	rsreset
+	;window
+	;
+wi_slice	rs.l	1	;slice window appears in!
+wi_nslice	rs.l	1	;next slice to disp.
+wi_x	rs	1
+wi_y	rs	1
+wi_w	rs	1	;how many chixels across
+wi_h	rs	1	;how many down
+wi_pw	rs	1	;width of 1 chixel
+wi_ph	rs	1	;hite of 1 chixel
+	;
+wi_joybase	rs.l	1
+	;
+wi_camx	rs.w	1
+wi_camz	rs.w	1
+wi_camy	rs.w	1
+wi_camr	rs.w	1
+	;
+wi_bh	rs	1	;bitmap height
+	;
+wi_bmapmem	rs.l	1
+wi_copmem	rs.l	1
+wi_bmap	rs.l	1
+wi_cop	rs.l	1
+wi_cop1	rs.l	1
+wi_cop2	rs.l	1
+wi_copmod	rs	1
+	;
+wi_size	rs.b	0
+
+check	macro
+	list
+check	set	*-\1
+	nolist
+	endm
+
+push	macro
+	movem.l	d2-d7/a2-a6,-(a7)
+	endm
+
+pull	macro
+	movem.l	(a7)+,d2-d7/a2-a6
+	endm
+
+col	macro
+	move	#0,$dff106
+	move	\1,$dff180
+	endm
+
+cli	;
+	move.l	a0,a2
+	;
+	lea	dosname,a1
+	move.l	4.w,a6
+	jsr	-408(a6)
+	move.l	d0,dosbase
+	;
+	cmp.b	#'@',(a2)+
+	bne.s	main
+	move.l	a2,a0
+	moveq	#1,d1
+	bsr	loadfile
+	move.l	d0,map_map
+	bne.s	main
+	rts
+main	;
+	lea	palettes,a2
+	moveq	#15,d2
+.palloop	move.l	#512,d0
+	moveq	#1,d1
+	jsr	allocmem
+	move.l	d0,(a2)+
+	dbf	d2,.palloop
+	;
+	move.l	#24*256,d0
+	moveq	#1,d1
+	jsr	allocmem
+	move.l	d0,rgbs
+	;
+	jsr	initmap
+	;
+	jsr	initdisplay
+	jsr	ownblitter
+	jsr	initvbint
+	jsr	forbid
+	;
+	move.l	#1024,d0
+	moveq	#1,d1
+	jsr	allocmem
+	move.l	d0,walls
+	;
+	move.l	#320*vd_size,d0
+	moveq	#1,d1
+	jsr	allocmem
+	move.l	d0,vertdraws
+	;
+	jsr	dispoff
+	;
+	jsr	makecoloffs
+	;
+	lea	window1,a0
+	bsr	makewindow
+	lea	window2,a0
+	bsr	makewindow
+	;
+	lea	window1,a0
+	bsr	showwindow
+	lea	window2,a0
+	bsr	showwindow
+	;
+	bsr	dispon
+	;
+.loop	bsr	vwait
+	lea	window1,a0
+	bsr	showwindowq
+	lea	window2,a0
+	bsr	showwindowq
+	bsr	readjoys
+	;
+	lea	window1,a0
+	bsr	dbwindow
+	bsr	clswindow
+	lea	window1,a0
+	bsr	moveplayer
+	bsr	makewalls
+	bsr	castwalls
+	bsr	renderwindow
+	;
+	elseif
+	lea	window2,a0
+	bsr	dbwindow
+	bsr	clswindow
+	lea	window2,a0
+	bsr	moveplayer
+	bsr	makewalls
+	bsr	castwalls
+	bsr	renderwindow
+	elseif
+	;
+	btst	#7,$bfe001
+	bne	.loop
+	;
+	bsr	permit
+	bsr	finitvbint
+	bsr	disownblitter
+	bsr	finitdisplay
+	;
+	bsr	freememlist
+	rts
+
+; ************* FAST SUBS ********************
+
+fastsubs
+
+mover	;
+	;d3=speed scale
+	;d4=x vec (unit)
+	;d5=z vec (unit)
+	;d6=x
+	;d7=z
+	;
+	;return d0, ne if a wall was hit!
+	;
+	muls	d3,d4	;x vec
+	add.l	d4,d4
+	swap	d4
+	add	d4,d6
+	add	d4,d6
+	add	d4,d6
+	bsr	checknew
+	beq.s	.xok
+	sub	d4,d6
+.xok	sub	d4,d6
+	sub	d4,d6
+	;
+	muls	d3,d5	;z vec
+	add.l	d5,d5
+	swap	d5
+	add	d5,d7
+	add	d5,d7
+	add	d5,d7
+	bsr	checknew
+	beq.s	.zok
+	sub	d5,d7
+.zok	sub	d5,d7
+	sub	d5,d7
+	rts
+
+checknew	movem.l	d3-d5,-(a7)
+	;
+	addq	#1,frame
+	move	frame(pc),d5
+	move	d6,d0
+	move	d7,d1
+	lsr	#grdshft,d0	;x count
+	lsr	#grdshft,d1
+	lsl	#5,d1
+	add	d0,d1
+	move.l	map_grid(pc),a0
+	lea	0(a0,d1*4),a0
+	moveq	#1,d1
+	move.l	map_ppnt(pc),a1
+	move.l	map_poly(pc),a2
+	;
+	;d0=counter to left of map!
+	;d1=in/out counter
+	;
+.loop	move	(a0)+,d2	;how many in this grid!
+	bmi	.next
+	;
+	move	(a0),d3
+	lea	0(a1,d3*2),a3
+	;
+.loop2	move	(a3)+,d3
+	lsl	#5,d3
+	lea	0(a2,d3),a4
+	;
+	cmp	(a4),d5
+	beq	.next2
+	move	d5,(a4)
+	;
+	cmp	28(a4),d7
+	blt	.next2
+	cmp	30(a4),d7
+	bge	.next2
+	;
+	;OK, we are in the z area!
+	;
+	cmp	24(a4),d6
+	blt	.next2	;too far left!
+	cmp	26(a4),d6
+	bgt	.inc
+	;
+	;have to do test!
+	;
+	movem	2(a4),d3-d4	;x1,z1
+	sub	d6,d3
+	muls	20(a4),d3
+	sub	d7,d4
+	muls	22(a4),d4
+	add.l	d4,d3
+	bpl.s	.next2
+	;
+.inc	addq	#1,d1
+	;
+.next2	dbf	d2,.loop2
+	;
+.next	subq	#6,a0
+	dbf	d0,.loop
+	;
+	and	#1,d1
+	;
+	movem.l	(a7)+,d3-d5
+	rts
+
+moveplayer	;a0=window
+	;
+	;
+	;rotate...
+	;
+	move.l	wi_joybase(a0),a1
+	move	(a1),d0	;joyx
+	add	d0,d0
+	add	d0,wi_camr(a0)
+	move	wi_camr(a0),d0
+	and	#255,d0
+	move.l	camrots(pc),a2
+	lea	0(a2,d0*8),a2
+	move.l	(a2)+,cm1
+	move.l	(a2),cm3
+	;
+	;move...
+	;
+	move	2(a1),d3
+	lsl	#4,d3	;speed
+	movem.l	cm1(pc),d4-d5
+	neg	d5	;!sub!
+	movem	wi_camx(a0),d6-d7
+	move.l	a0,-(a7)
+	bsr	mover
+	move.l	(a7)+,a0
+	movem	d6-d7,wi_camx(a0)
+	movem	d6-d7,camx
+	move.l	wi_camy(a0),camy
+	;
+	rts
+
+readjoys	;set up joyx0,joyy0,joyx1,joyy1
+	;
+	move	$dff00a,d2	;joy0
+	bsr	readjoy
+	move	d0,joyx0
+	move	d1,joyy0
+	bsr	makerot
+	move	d0,joyr0
+	btst	#6,$bfe001
+	sne	d0
+	ext	d0
+	move	d0,joyb0
+	;
+	move	$dff00c,d2
+	bsr	readjoy
+	move	d0,joyx1
+	move	d1,joyy1
+	bsr	makerot
+	move	d0,joyr1
+	btst	#7,$bfe001
+	sne	d0
+	ext	d0
+	move	d0,joyb1
+	rts
+
+makerot	;convert d0,d1 into a rotation type setting...
+	;
+	;0=up, 1=up/rite, 2=rite etc...
+	;
+	;<0=no dir
+	;
+	addq	#1,d0
+	lsl	#2,d0
+	addq	#1,d1
+	or	d1,d0
+	add	d0,d0
+	move	rots(pc,d0),d0
+	rts
+
+rots	;x=-1
+	dc	7,6,5,-1
+	;x=0
+	dc	0,-1,4,-1
+	;x=1
+	dc	1,2,3,-1
+
+readjoy	bsr	joydir
+	move	d1,d0
+	move	d2,d1
+	add	d1,d1
+	eor	d1,d2
+	;
+joydir	btst	#9,d2
+	bne.s	.neg
+	btst	#1,d2
+	bne.s	.pos
+	moveq	#0,d1
+	rts
+.neg	moveq	#-1,d1
+	rts
+.pos	moveq	#1,d1
+	rts
+
+gridoffs	dc	0,0
+	;
+	dc	-1,-1,0,-1,1,-1
+	dc	-1,0,1,0
+	dc	-1,1,0,1,1,1
+	;
+	dc	-2,-2,-1,-2,0,-2,1,-2,2,-2
+	dc	-2,-1,2,-1
+	dc	-2,0,2,0
+	dc	-2,1,2,1
+	dc	-2,2,-1,2,0,2,1,2,2,2
+	;
+	dc	-3,-3,-2,-3,-1,-3,0,-3,1,-3,2,-3,3,-3
+	dc	-3,-2,3,-2
+	dc	-3,-1,3,-1
+	dc	-3,0,3,0
+	dc	-3,1,3,1
+	dc	-3,2,3,2
+	dc	-3,3,-2,3,-1,3,0,3,1,3,2,3,3,3
+	;
+	dc	-4,-4,-3,-4,-2,-4,-1,-4,0,-4,1,-4,2,-4,3,-4,4,-4
+	dc	-4,-3,4,-3
+	dc	-4,-2,4,-2
+	dc	-4,-1,4,-1
+	dc	-4,0,4,0
+	dc	-4,1,4,1
+	dc	-4,2,4,2
+	dc	-4,3,4,3
+	dc	-4,4,-3,4,-2,4,-1,4,0,4,1,4,2,4,3,4,4,4
+	
+gridoffsf
+
+makewalls	;check surround blocks for polygons and build into 'walls array'
+	;
+	;this only called once/refresh...but it's output is
+	;processed every screen column...so minimize output as much
+	;as poss!
+	;
+	;optimization...check if both z's are negative after rotation!
+	;
+	addq	#1,frame
+	move	#-1,wallcnt
+	move.l	walls(pc),a5
+	move.l	map_poly(pc),a4
+	move.l	map_ppnt(pc),a3
+	move.l	map_grid(pc),a2
+	movem	camx(pc),d6-d7	;x,z
+	lsr	#grdshft,d6
+	lsr	#grdshft,d7
+	lea	gridoffs(pc),a6
+	moveq	#(gridoffsf-gridoffs)>>2-1,d5
+	;
+.loop	movem	(a6)+,d2-d3
+	;
+	move	d6,d0
+	add	d2,d0
+	cmp	#32,d0
+	bcc	.skip
+	;
+	move	d7,d1
+	add	d3,d1
+	cmp	#32,d1
+	bcc	.skip
+	;
+	;d0,d1=x/z of map to check!
+	;
+	lsl	#5,d1	;Y*32...
+	add	d1,d0	;+X
+	lea	0(a2,d0*4),a0	;mapgrid
+	move	(a0)+,d4	;how many polys here
+	bmi	.skip
+	move	(a0),d0	;poly data offset
+	lea	0(a3,d0*2),a0
+	;
+.loop2	move	(a0)+,d0	;poly#
+	lsl	#5,d0
+	lea	0(a4,d0),a1	;actual poly
+	move	frame(pc),d0
+	cmp	(a1),d0
+	beq	.skip2
+	move	d0,(a1)+
+	addq	#1,wallcnt
+	;
+	bsr	rotandadd	;x1,z1
+	bsr	rotandadd	;x2,z2
+	;
+	move.l	(a1)+,(a5)+	;y,h
+	move.l	(a1)+,(a5)+	;scale
+	move.l	(a1)+,(a5)+	;texture
+	;
+.skip2	dbf	d4,.loop2
+	;
+.skip	dbf	d5,.loop
+	;
+	rts
+
+rotandadd	movem	(a1)+,d0-d1	;X,Z
+	sub	camx(pc),d0
+	sub	camz(pc),d1
+	move	d0,d2
+	move	d1,d3
+	;
+	muls	cm1(pc),d0
+	muls	cm2(pc),d1
+	add.l	d1,d0
+	add.l	d0,d0
+	swap	d0
+	move	d0,(a5)+	;X
+	;
+	muls	cm3(pc),d2
+	muls	cm4(pc),d3
+	add.l	d3,d2
+	add.l	d2,d2
+	swap	d2
+	move	d2,(a5)+	;Z
+	;
+	rts
+
+castwalls	;process 'walls' list
+	;
+	move.l	castrots(pc),a6
+	move.l	vertdraws(pc),a4
+	move	minx(pc),d0
+	lsl	#3,d0
+	add	d0,a6
+	move	width(pc),d7
+	subq	#1,d7
+	;
+.columnloop	;do this vert line!
+	;
+	clr.l	vd_data(a4)
+	move.l	walls(pc),a5
+	move	wallcnt(pc),d6
+	bmi	.nextcolumn
+	;
+	;OK, here we use Z buffer to find nearest Z!
+	;
+	move	#32767,vd_z(a4)
+.vertloop	;
+	move	va_lx(a5),d0
+	move	va_lz(a5),d1
+	muls	(a6),d0
+	muls	2(a6),d1
+	add.l	d1,d0	;LX!
+	bgt	.nextvert
+	;
+	move	va_rx(a5),d1
+	move	va_rz(a5),d2
+	muls	(a6),d1
+	muls	2(a6),d2
+	add.l	d2,d1	;RX!
+	lsl.l	#4,d1
+	swap	d1
+	tst	d1
+	ble	.nextvert
+	;
+	;OK, this vertical section is in line with RAY!
+	;gotta find middle Z!
+	;
+	;LX<0<RX
+	;calc fraction...how far from LX 0 is! -> (-lx)/(rx-lx)
+	;
+	lsl.l	#4,d0
+	swap	d0
+	sub	d0,d1
+	ble	.nextvert
+	swap	d0
+	neg.l	d0
+	divu	d1,d0	;fraction!
+	;
+	move	va_lx(a5),d1
+	move	va_lz(a5),d2
+	muls	4(a6),d1
+	muls	6(a6),d2
+	add.l	d2,d1	;LZ
+	add.l	d1,d1
+	swap	d1
+	;
+	move	va_rx(a5),d2
+	move	va_rz(a5),d3
+	muls	4(a6),d2
+	muls	6(a6),d3
+	add.l	d3,d2	;RZ
+	add.l	d2,d2
+	swap	d2
+	;
+	move	d0,d3
+	lsr	#1,d3
+	sub	d1,d2
+	muls	d3,d2
+	add.l	d2,d2
+	swap	d2
+	add	d1,d2	;middle Z!
+	ble	.nextvert
+	cmp	#maxz,d2
+	bcc	.nextvert
+	;
+	;OK, d0.r=fraction, d2.w=middle Z!...calc real height!
+	;
+	move	d2,d3
+	lsr	#darkshft,d3
+	movem	d2-d3,vd_z(a4)
+	;
+	move	va_h(a5),d1
+	ext.l	d1
+	lsl.l	#focshft,d1
+	divs	d2,d1	;real h
+	ble	.nextvert
+	move	d1,vd_h(a4)
+	;
+	lea	textures(pc),a3
+	move	va_texture(a5),d3
+	move.l	-4(a3,d3*4),a3
+	;
+	;have to divide h into real height of texture!
+	;
+	move	te_hand(a3),d3
+	addq	#1,d3
+	swap	d3
+	clr	d3
+	ext.l	d1
+	lsl.l	#5,d1
+	lsl.l	#5,d3
+	divu.l	d1,d3
+	move.l	d3,vd_ystep(a4)
+	;
+	move	va_y(a5),d1
+	ext.l	d1
+	lsl.l	#focshft,d1
+	divs	d2,d1	;real Y
+	move	d1,vd_y(a4)
+	;
+	;find which column....0 -> w-1
+	;
+	;scale up fraction to find texture column!
+	;
+	and.l	#$ffff,d0
+	move.l	va_scale(a5),d1
+	mulu.l	d1,d1:d0
+	move	d1,d0
+	swap	d0
+	;
+	move	te_wshift(a3),d1
+	lsl.l	d1,d0
+	swap	d0	;which column!
+	move	te_wand(a3),d1
+	and	d1,d0
+	;
+	move	te_hshift(a3),d1
+	lsl	d1,d0
+	;
+	lea	te_size(a3,d0),a3
+	move.l	a3,vd_data(a4)
+	bra.s	.nextcolumn
+	;
+.nextvert	lea	va_size(a5),a5
+	dbf	d6,.vertloop
+	;
+.nextcolumn	lea	vd_size(a4),a4
+	addq	#8,a6
+	dbf	d7,.columnloop
+	;
+	check	.columnloop
+	;
+	rts
+
+dbwindow	;a0=window to double buffer....
+	;
+	movem.l	wi_cop(a0),d0-d1
+	cmp.l	d0,d1
+	bne.s	.skip
+	move.l	wi_cop2(a0),d1
+.skip	move.l	d1,wi_cop(a0)
+	;
+usewindow	;a0=window to use...
+	;
+	move.l	wi_cop(a0),cop
+	move	wi_copmod(a0),copmod
+	move	wi_w(a0),d0
+	move	d0,width
+	lsr	#1,d0
+	move	d0,maxx
+	neg	d0
+	move	d0,minx
+	move	wi_h(a0),d1
+	move	d1,hite
+	lsr	#1,d1
+	move	d1,maxy
+	neg	d1
+	move	d1,miny
+	;
+	rts
+
+clswindow	;clear window contents/arrays etc.
+	;
+blitcls	;use blitter to cls cop
+	;
+	move	width(pc),d0
+	subq	#1,d0
+	;
+	move	hite(pc),d1
+	lsl	#6,d1
+	or	#1,d1
+	;
+	move	copmod(pc),d2
+	subq	#2,d2
+	;
+	lea	coloffs(pc),a0
+	lea	$dff000,a1
+	;
+	btst	#6,2(a1)
+.bwait	btst	#6,2(a1)
+	bne.s	.bwait
+	;
+	move.l	#$1000000,$040(a1)
+	move	d2,$066(a1)	;Dmod
+	;
+.loop	move.l	cop(pc),d2
+	add.l	(a0)+,d2
+	;
+	move.l	d2,$054(a1)	;Dpth
+	move	d1,$058(a1)	;size...
+	;
+	btst	#6,2(a1)
+.bwait2	btst	#6,2(a1)
+	bne.s	.bwait2
+	;
+	dbf	d0,.loop
+	rts
+
+blitcls2	;use blitter to cls cop
+	;
+	move	width(pc),d0
+	subq	#1,d0
+	;
+	move	hite(pc),d1
+	lsr	#1,d1
+	lsl	#6,d1
+	or	#1,d1
+	;
+	move	copmod(pc),d2
+	add	d2,d2
+	subq	#2,d2
+	;
+	lea	coloffs(pc),a0
+	lea	$dff000,a1
+	move	#$f00,d7
+	move	#0,d6
+	;
+	btst	#6,6(a1)
+.bwait	btst	#6,6(a1)
+	bne.s	.bwait
+	;
+	move.l	#$1f00000,$040(a1)
+	move	d2,$066(a1)	;Dmod
+	move.l	#-1,$044(a1)
+	;
+.loop	move.l	cop(pc),d2
+	add.l	(a0)+,d2
+	;
+	move.l	d2,$054(a1)	;Dpth
+	move	d1,$058(a1)	;size...
+	move	d7,$074(a1)
+	addq	#1,d7
+	and	#$f0f,d7
+	;
+	btst	#6,2(a1)
+.bwait2	btst	#6,2(a1)
+	bne.s	.bwait2
+	;
+	move	copmod(pc),d5
+	ext.l	d5
+	add.l	d5,d2
+	move.l	d2,$054(a1)	;Dpth
+	move	d1,$058(a1)	;size...
+	move	d6,$074(a1)
+	addq	#1,d6
+	and	#$f0f,d6
+	;
+	btst	#6,2(a1)
+.bwait3	btst	#6,2(a1)
+	bne.s	.bwait3
+	;
+	dbf	d0,.loop
+	rts
+
+renderwindow	;
+	;
+renderwalls	move.l	vertdraws(pc),a6
+	lea	coloffs(pc),a5
+	move	width(pc),d7
+	subq	#1,d7
+	lea	palettes,a2
+	;
+.loop	move.l	vd_data(a6),d0
+	beq	.vertskip
+	move.l	d0,a0
+	;
+	move.l	cop(pc),a1
+	add.l	(a5),a1
+	;
+	move	vd_h(a6),d5
+	move.l	vd_ystep(a6),d1
+	;
+	move	vd_y(a6),d0
+	add	midy(pc),d0
+	bpl.s	.noclip
+	;
+	;gotta clip Y
+	add	d0,d5	;reduce hite
+	ble	.vertskip
+	neg	d0
+	ext.l	d0
+	mulu.l	d1,d0	;y step* y
+	bra.s	.skipclip
+	;
+.noclip	mulu	copmod(pc),d0
+	add.l	d0,a1
+	moveq	#0,d0
+.skipclip	;
+	swap	d0
+	swap	d1
+	move	vd_pal(a6),d2
+	move.l	0(a2,d2*4),a3
+	moveq	#0,d2
+	moveq	#0,d3
+	move	copmod(pc),d4
+	ext.l	d4
+	cmp	hite(pc),d5
+	ble.s	.hok
+	move	hite(pc),d5
+.hok	subq	#1,d5
+	;	
+.vertloop	;a0=src texture column
+	;a1=dest coppoke
+	;a3=palette
+	;d0=current Y
+	;d1=Y step
+	;d2=0
+	;d3=$00xx
+	;d4=copmod
+	;d5=count
+	;
+	move.b	0(a0,d0),d3	;lut entry
+	move	0(a3,d3*2),(a1) ;colour!
+	add.l	d1,d0
+	addx.l	d2,d0
+	add.l	d4,a1
+	dbf	d5,.vertloop
+	;
+.vertskip	addq	#4,a5
+	lea	vd_size(a6),a6
+	dbf	d7,.loop
+	;
+	check	.loop
+	;
+	rts
+
+vbhandler	subq	#1,(a1)
+	moveq	#0,d0
+	rts
+
+vwait	move	#1,vbcounter
+.loop	tst	vbcounter
+	bgt.s	.loop
+	rts
+
+;************** DATA ***************************
+
+data
+
+palettes	ds.l	16	;16 palettes for 16 brightnesses
+rgbs	ds.l	1	;table for calculating palettes
+
+joyx0	dc	0
+joyy0	dc	0
+joyr0	dc	0
+joyb0	dc	0
+	;
+joyx1	dc	0
+joyy1	dc	0
+joyr1	dc	0
+joyb1	dc	0
+
+map_map	dc.l	mapinc
+map_grid	dc.l	0
+map_poly	dc.l	0
+map_ppnt	dc.l	0
+map_rgbs	dc.l	0
+map_txts	dc.l	0
+	;
+camx	dc	0
+camz	dc	0
+camy	dc	0
+camr	dc	0
+
+	;camera matrix...
+cm1	dc	$7ffe
+cm2	dc	0
+cm3	dc	0
+cm4	dc	$7ffe
+
+castrots	dc.l	castrotsinc+8*160	;middle of table
+camrots	dc.l	camrotsinc
+vertdraws	dc.l	0	;vertical strips to draw
+
+walls	dc.l	0	;linked list of walls to display
+wallcnt	dc.l	0
+			;already rotated around camera!
+cop	dc.l	0
+copmod	dc	0
+width	dc	0
+hite	dc	0
+minx	dc	0
+midx	;
+maxx	dc	0
+miny	dc	0
+midy	;
+maxy	dc	0
+
+coplist	dc.l	0
+slice1	dc.l	0
+slice2	dc.l	0
+copstop	dc.l	0
+
+memlist	dc.l	0
+
+dispnest	dc	0
+
+coloffs	ds.l	320	;320 columns max
+
+window1	;
+slice	dc.l	slice1
+nslice	dc.l	copstop ;slice2	;copstop here for 1 window
+	;
+	dc	160-52*3
+	dc	44
+	dc	104 	;max width for 2 high = 90!
+	dc	80
+	dc	3
+	dc	3
+	dc.l	joyx1
+	dc	0,0,0,0	;camx,z,y,r
+	;
+	dc	0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+
+window2	;
+	dc.l	slice2
+	dc.l	copstop
+	;
+	dc	160-32*3
+	dc	44+120
+	dc	64
+	dc	59
+	dc	3
+	dc	2
+	dc.l	joyx0
+	dc	0,0,0,0	;camx,z,y,r
+	;
+	dc	0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+
+col0	equ	$123
+
+copinit	;initialization for display
+	;
+	dc	$1fc,15
+	dc	$096,$0120	;cop/bit/spr DMA off
+	;dc	$08e,$2c81,$090,$f4c1
+	dc	$092,$38,$094,$a0
+	dc	$108,6*40,$10a,6*40
+	dc	$100,$7200	;lores, 7 bitplanes
+	dc	$102,0
+	;
+	dc	26<<8+1,$fffe
+	;
+	;lo colour nybs - lo bank
+	dc	$106,$0200
+	dc	$180,col0
+	;
+	;lo nybs - hi bank
+	dc	$106,$8200
+	dc	$180,col0
+	;
+	;hi colour nybs - lo bank
+	dc	$106,0
+	dc	$180,col0
+	;
+	;hi colour nybs - hi bank
+	dc	$106,$8000
+	dc	$180,col0
+	;
+	;slice...
+	;
+sl1	dc	$e0,0,$e2,0
+	dc	$e4,0,$e6,0
+	dc	$e8,0,$ea,0
+	dc	$ec,0,$ee,0
+	dc	$f0,0,$f2,0
+	dc	$f4,0,$f6,0
+	dc	$f8,0,$fa,0
+	dc	$08e,$2c81,$090,$f4c1	;diw
+	dc	$096,$8100
+	dc	$084,0,$086,0,$08a,0
+	;
+sl2	dc	$e0,0,$e2,0
+	dc	$e4,0,$e6,0
+	dc	$e8,0,$ea,0
+	dc	$ec,0,$ee,0
+	dc	$f0,0,$f2,0
+	dc	$f4,0,$f6,0
+	dc	$f8,0,$fa,0
+	;56
+	dc	$08e,$2c81,$090,$f4c1	;diw
+	;64
+	dc	$096,$8100
+	;68
+	dc	$084,0,$086,0,$08a,0
+	;
+cstop	dc	$096,$0100
+	dc	$ffff,$fffe
+copinitf	;
+
+bigdata
+
+textures	ds.l	48
+
+mapinc	incbin	maps/test
+castrotsinc	incbin	castrots.bin
+camrotsinc	incbin	camrots.bin
+palette	incbin	texture.pal
+
+testwall	dc	-256,1024,256,1024
+	dc	-64,128
+	dc.l	$40000
+	dc.l	0
+
+;************** SLOW SUBS **********************
+
+slowsubs
+
+loadfile	;a0=name, d1=memtype
+	;
+	;return d0=pointer
+	;
+	push
+	;
+	move.l	d1,-(a7)
+	;
+	move.l	a0,d1
+	move.l	#1005,d2
+	move.l	dosbase,a6
+	jsr	-30(a6)	;open it!
+	move.l	d0,d7	;handle
+	beq	.done
+	;
+	move.l	d7,d1
+	moveq	#0,d2
+	moveq	#1,d3
+	jsr	-66(a6)	;seek to end
+	;
+	move.l	d7,d1
+	moveq	#0,d2
+	moveq	#-1,d3	;seek to start
+	jsr	-66(a6)
+	;
+	;d0=length of file ?
+	;
+	move.l	d0,d3
+	move.l	(a7),d1
+	jsr	allocmem
+	;
+	move.l	d0,d2
+	move.l	d7,d1
+	jsr	-42(a6)
+	move.l	d7,d1
+	jsr	-36(a6)
+	move.l	d2,d0
+	;
+.done	addq	#4,a7
+	pull
+	;
+	rts
+
+calcpalettes	;a0=palette!
+	;
+	move.l	map_rgbs(pc),a0
+	;
+	move.l	rgbs(pc),a1
+	move	#255,d0
+	move.l	#$f0000,d1
+	;
+.loop	move	(a0)+,d2
+	;
+	move	d2,d3
+	lsl.l	#8,d2
+	and.l	d1,d2
+	move.l	d2,(a1)+	;R
+	;
+	move	d3,d2
+	lsl.l	#8,d2
+	lsl.l	#4,d2
+	and.l	d1,d2
+	move.l	d2,(a1)+	;G
+	;
+	swap	d3
+	and.l	d1,d3
+	move.l	d3,(a1)+	;B
+	;
+	dbf	d0,.loop
+	;
+	lea	palettes(pc),a0
+	moveq	#15,d0
+	;
+.loop2	move.l	rgbs(pc),a1
+	move.l	(a0)+,a2
+	move	#255,d1
+	;
+.loop3	movem.l	(a1),d2-d4
+	lsr.l	#8,d2
+	and	#$f00,d2
+	lsr.l	#8,d3
+	lsr.l	#4,d3
+	and	#$f0,d3
+	swap	d4
+	and	#$f,d4
+	or	d4,d3
+	or	d3,d2
+	move	d2,(a2)+
+	;
+	move.l	(a1),d2
+	sub.l	#$10000,d2
+	bpl.s	.rok
+	moveq	#0,d2
+.rok	move.l	d2,(a1)+
+	;
+	move.l	(a1),d3
+	sub.l	#$10000,d3
+	bpl.s	.gok
+	moveq	#0,d3
+.gok	move.l	d3,(a1)+
+	;
+	move.l	(a1),d4
+	sub.l	#$10000,d4
+	bpl.s	.bok
+	moveq	#0,d4
+.bok	move.l	d4,(a1)+
+	;	
+	dbf	d1,.loop3
+	dbf	d0,.loop2
+	rts
+
+dispoff	tst	dispnest
+	bne.s	.skip
+	bsr	vwait
+	move	#$01a0,$dff096
+.skip	addq	#1,dispnest
+	rts
+
+dispon	subq	#1,dispnest
+	bgt.s	.skip
+	bsr	vwait
+	move	#$8180,$dff096
+.skip	rts
+
+forbid	push
+	move.l	4.w,a6
+	jsr	-132(a6)
+	pull
+	rts
+
+permit	push
+	move.l	4.w,a6
+	jsr	-138(a6)
+	pull
+	rts
+
+initvbint	push
+	move.l	4.w,a6
+	moveq	#5,d0
+	lea	vbintserver,a1
+	jsr	-168(a6)	;addintserver
+	pull
+	rts
+
+vbcounter	dc	0
+frame	dc	0
+
+vbintserver	dc.l	0,0
+	dc.b	2,0
+	dc.l	0
+vbintdata	dc.l	vbcounter
+vbintcode	dc.l	vbhandler
+
+finitvbint	push
+	move.l	4.w,a6
+	moveq	#5,d0
+	lea	vbintserver,a1
+	jsr	-174(a6)
+	pull
+	rts
+
+ownblitter	push
+	move.l	grbase,a6
+	jsr	-456(a6)
+	btst	#6,$dff002
+.bwait	btst	#6,$dff002
+	bne.s	.bwait
+	pull
+	rts
+
+disownblitter	push
+	btst	#6,$dff002
+.bwait	btst	#6,$dff002
+	bne.s	.bwait
+	move.l	grbase,a6
+	jsr	-462(a6)
+	pull
+	rts
+
+makecoloffs	push
+	lea	coloffs,a0
+	moveq	#2,d0
+	moveq	#3,d2
+.loop	addq.l	#4,d0
+	moveq	#31,d1
+.loop2	move.l	d0,(a0)+
+	addq.l	#4,d0
+	dbf	d1,.loop2
+	dbf	d2,.loop
+	pull
+	rts
+
+grname	dc.b	'graphics.library',0
+	even
+grbase	dc.l	0
+oldview	dc.l	0
+dosname	dc.b	'dos.library',0
+	even
+dosbase	dc.l	0
+
+showwindow	;a0=window
+	;
+	push
+	;
+	;poke bitmaps...
+	move.l	wi_slice(a0),a1
+	move.l	(a1),a1
+	move.l	wi_bmap(a0),d0
+	moveq	#6,d1	;7 bitplanes
+.loop	move	d0,6(a1)
+	swap	d0
+	move	d0,2(a1)
+	swap	d0
+	add.l	#40,d0
+	addq	#8,a1
+	dbf	d1,.loop
+	;
+	;create DIW
+	move.l	wi_slice(a0),a1
+	move.l	(a1),a1
+	move	wi_y(a0),d0
+	move	d0,d1
+	add	wi_bh(a0),d1
+	lsl	#8,d0
+	or	#$81,d0
+	move	d0,56+2(a1)
+	lsl	#8,d1
+	or	#$c1,d1
+	move	d1,56+6(a1)
+	;
+	;create link to next!
+	move.l	wi_nslice(a0),a1
+	move.l	(a1),d0
+	move.l	wi_cop1(a0),a1
+	add.l	wi_copmem(a0),a1
+	move.l	wi_cop2(a0),a2
+	add.l	wi_copmem(a0),a2
+	move	d0,-6(a1)
+	move	d0,-6(a2)
+	swap	d0
+	move	d0,-10(a1)
+	move	d0,-10(a2)
+	;
+	pull
+	;
+showwindowq	;display coplist
+	;
+	move.l	wi_slice(a0),a1
+	move.l	(a1),a1
+	move.l	wi_cop(a0),d0
+	move	d0,68+6(a1)
+	swap	d0
+	move	d0,68+2(a1)
+	rts
+
+finitdisplay	push
+	;
+	move.l	grbase,a6
+	move.l	oldview,a1
+	jsr	-222(a6)	;load view
+	jsr	-270(a6)
+	jsr	-270(a6)
+	move.l	38(a6),$dff080
+	move	#0,$dff088
+	move	#$81a0,$dff096
+	;
+	pull
+	rts
+
+initdisplay	push
+	;
+	lea	grname,a1
+	move.l	4.w,a6
+	jsr	-408(a6)
+	move.l	d0,grbase
+	;
+	move.l	d0,a6
+	move.l	34(a6),oldview
+	sub.l	a1,a1
+	jsr	-222(a6)	;loadview
+	;
+	move.l	#copinitf-copinit,d0
+	moveq	#2,d1
+	bsr	allocmem
+	move.l	d0,coplist
+	;
+	move.l	d0,a1
+	lea	copinit,a0
+	lea	copinitf,a2
+	;
+.loop	cmp.l	a2,a0
+	bcc.s	.done
+	move.l	(a0)+,(a1)+
+	bra.s	.loop
+.done	;
+	add.l	#sl1-copinit,d0
+	move.l	d0,slice1
+	add.l	#sl2-sl1,d0
+	move.l	d0,slice2
+	add.l	#cstop-sl2,d0
+	move.l	d0,copstop
+	;
+	move.l	copstop,d0
+	move.l	slice1,a0
+	move.l	slice2,a1
+	move	d0,68+6(a0)
+	move	d0,68+6(a1)
+	swap	d0
+	move	d0,68+2(a0)
+	move	d0,68+2(a1)
+	;
+	jsr	-270(a6)
+	jsr	-270(a6)
+	move.l	coplist,$dff080
+	move	#0,$dff088
+	;
+	pull
+	rts
+
+makewindow	;
+	;a0=window struct!
+	;
+	push
+	;
+	move.l	a0,a2
+	;
+	move	wi_h(a2),d0
+	mulu	wi_ph(a2),d0
+	move	d0,wi_bh(a2)
+	mulu	#40*7,d0
+	;
+	move.l	#$10002,d1
+	move.l	d0,wi_bmapmem(a2)
+	bsr	allocmem
+	move.l	d0,wi_bmap(a2)
+	;
+	;OK, plot colours on bitmap!
+	move.l	d0,a0
+	move	wi_x(a2),d0
+	move	d0,d1
+	lsr	#3,d0
+	not	d1
+	and	#7,d1
+	moveq	#127,d7	;colour
+	move	wi_w(a2),d6	;width
+	subq	#1,d6
+	;
+.wloop	move	wi_pw(a2),d5
+	subq	#1,d5
+	;
+.wloop2	move	d7,d4
+	moveq	#6,d3
+	;
+.dloop	bclr	d1,0(a0,d0)
+	lsr	#1,d4
+	bcc.s	.dskip
+	bset	d1,0(a0,d0)
+.dskip	lea	40(a0),a0
+	dbf	d3,.dloop
+	;
+	lea	-40*7(a0),a0
+	subq	#1,d1
+	bpl.s	.dskip2
+	moveq	#7,d1
+	addq	#1,d0
+.dskip2	dbf	d5,.wloop2
+	;
+	subq	#1,d7
+	dbf	d6,.wloop
+	;
+	move.l	wi_bmapmem(a2),d0
+	sub.l	#40*7,d0
+	lsr.l	#2,d0
+	subq	#1,d0
+	lea	40*7(a0),a1
+.cbloop	move.l	(a0)+,(a1)+
+	dbf	d0,.cbloop
+	;
+	;how many copins on one line?
+	move	wi_w(a2),d0
+	move	d0,d1
+	subq	#1,d0
+	lsr	#5,d0	;how many bank changes per line!
+	addq	#4,d0	;2 waits - 1 eor, 1 init bank select
+	add	d1,d0	;+colpokes
+	;
+	move	d0,d1
+	lsl	#2,d1
+	move	d1,wi_copmod(a2)
+	;
+	mulu	wi_h(a2),d0
+	addq	#5,d0	;2 waits and cop jump at end
+	;
+	lsl.l	#2,d0	;4 bytes/copins
+	moveq	#2,d1	;cop in chip
+	move.l	d0,wi_copmem(a2)
+	lsl.l	#1,d0	;2 coplists!
+	bsr	allocmem
+	move.l	d0,wi_cop(a2)
+	move.l	d0,wi_cop1(a2)
+	;
+	move.l	d0,a0
+	move	wi_y(a2),d6
+	move	wi_h(a2),d7
+	subq	#1,d7
+	move	#$111,d3	;test colour
+	move	#$8000,d4	;Colour Eor
+	;
+.hloop	;make one copline...
+	;
+	moveq	#127,d0	;colour reg to poke
+	move	wi_w(a2),d1
+	subq	#1,d1
+	;
+.lloop	move	d0,d2
+	addq	#1,d2
+	and	#31,d2
+	bne.s	.notnbank
+	;
+	;new bank....
+	move	d0,d2
+	sub	#31,d2
+	and	#$ffe0,d2
+	lsl	#8,d2
+	or	d4,d2	;eor bank
+	move	#$106,(a0)+	;bank select
+	move	d2,(a0)+
+	;
+.notnbank	move	d0,d2
+	and	#31,d2
+	add	d2,d2
+	add	#$180,d2
+	move	d2,(a0)+	;colour poke
+	move	d3,(a0)+
+	add	#$111,d3
+	subq	#1,d0
+	dbf	d1,.lloop
+	;
+	bsr	.makewait
+	;
+	;ok, now do EOR!
+	move	#$10c,(a0)+
+	;move	#0,d4
+	move	d4,(a0)+
+	bchg	#15,d4
+	;
+	dbf	d7,.hloop
+	;
+	bsr	.makewait
+	;
+	move.l	#$00840000,(a0)+
+	move.l	#$00860000,(a0)+
+	move.l	#$008a0000,(a0)+
+	;
+	;OK, 1 list created...copy to other!
+	;
+	move.l	wi_cop1(a2),a0
+	move.l	a0,a1
+	add.l	wi_copmem(a2),a1
+	move.l	a1,wi_cop2(a2)
+	move.l	a1,a3
+	;
+.copycop	move.l	(a0)+,(a3)+
+	cmp.l	a1,a0
+	bcs.s	.copycop
+	;
+	pull
+	rts
+
+.makewait	;
+	;make wait ins.
+	move.l	#$01fe0000,(a0)+ ;no wait - nop
+	cmp	#256,d6
+	blt.s	.not256
+	move.l	#$00e1fffe,-4(a0)
+	sub	#256,d6
+.not256	move.b	d6,(a0)+
+	move.b	#1,(a0)+
+	move	#$fffe,(a0)+	;wait!
+	add	wi_ph(a2),d6
+	rts
+
+allocmem	;
+	;d0=size, d1=requirements
+	;
+	push
+	move.l	4.w,a6
+	;
+	addq.l	#8,d0
+	move.l	d0,-(a7)
+	jsr	-198(a6)
+	move.l	d0,a0
+	move.l	memlist,(a0)
+	move.l	(a7)+,4(a0)
+	move.l	a0,memlist
+	addq.l	#8,a0
+	move.l	a0,d0
+	;
+	pull
+	rts
+
+freememlist	push
+	move.l	4.w,a6
+	;
+.more	move.l	memlist,d0
+	beq.s	.done
+	move.l	d0,a1
+	move.l	(a1),memlist
+	move.l	4(a1),d0
+	jsr	-210(a6)
+	bra.s	.more
+	;
+.done	pull
+	rts
+
+freemem	;
+	;a1=address to free!
+	;
+	push
+	move.l	4.w,a6
+	subq.l	#8,a1
+	move.l	#memlist,d0
+	;
+.more	move.l	d0,a0
+	move.l	(a0),d0
+	beq.s	.done	;not found!
+	cmp.l	d0,a1
+	bne.s	.more
+	;
+	move.l	(a1),(a0)
+	move.l	4(a1),d0
+	jsr	-210(a6)
+	;
+.done	pull
+	rts
+
+initmap	push
+	;
+	move.l	map_map,a0
+	;
+	move.l	a0,a1
+	add.l	(a0),a1
+	move.l	a1,map_grid
+	;
+	move.l	a0,a1
+	add.l	4(a0),a1
+	move.l	a1,map_poly
+	;
+	move.l	a0,a1
+	add.l	8(a0),a1
+	move.l	a1,map_ppnt
+	;
+	move.l	a0,a1
+	add.l	12(a0),a1
+	move.l	a1,map_rgbs
+	;
+	move.l	a0,a1
+	add.l	16(a0),a1
+	move.l	a1,map_txts
+	;
+	jsr	calcpalettes
+	jsr	loadtxts
+	;
+	lea	window1,a0
+	bsr	initwindow
+	lea	window2,a0
+	bsr	initwindow
+	;
+	pull
+	rts
+
+loadtxts	move.l	map_txts,a5	;texture names
+	lea	textures,a6
+	moveq	#47,d7
+.ltl	lea	.temp(pc),a0
+.ltl2	move.b	(a5)+,(a0)+
+	bne.s	.ltl2
+	cmp.l	#.temp+1,a0
+	beq.s	.notext
+	lea	.temp2(pc),a0
+	moveq	#1,d1
+	jsr	loadfile
+.notext	move.l	d0,(a6)+
+	dbf	d7,.ltl
+	rts
+
+.temp2	dc.b	'txts/'
+.temp	ds.b	64
+
+initwindow	move	#16<<grdshft+128,wi_camx(a0)
+	move	#16<<grdshft-128,wi_camz(a0)
+	move	#0,wi_camr(a0)
+	move	#0,wi_camy(a0)
+	;
+	rts

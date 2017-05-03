@@ -1,0 +1,16 @@
+
+;
+;script for gloom game
+;
+
+pict_soldier
+draw_
+show_
+wait_
+dark_
+play_map1
+draw_
+show_
+wait_
+dark_
+done_

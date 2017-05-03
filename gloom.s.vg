@@ -1,0 +1,8959 @@
+
+	;OK, add a chunky to planar option!
+	;A500 etc. here we come!
+	;
+	;this'll require:
+	;
+	;user can select:
+	;
+	;internal error codes:
+	;
+	;red - allocmem failed
+	;yel - freemem failed
+	;orange - unknown script command
+	;purp - unknown event command
+	;cyn - can't open file in loadfile
+	;blu - ran out of remap colours!
+	;
+aga	equ	-1
+debugmem	equ	0
+maxobjects	equ	256	;max objects in game
+maxdoors	equ	16	;max doors opening at once
+maxblood	equ	128	;max droplets of bluuurd
+maxgore	equ	128	;body parts on ground!
+	;
+focshft	equ	6
+grdshft	equ	8
+darkshft	equ	7	;smaller=smaller range=faster!
+maxz	equ	16<<darkshft	;16*128=2048*8=16384
+	;
+exshft	equ	3 ;4
+exone	equ	1<<exshft
+exhalf	equ	exone>>1
+	;
+linemod	equ	40*7
+
+	jmp	entrypoint
+
+	rsreset
+	;
+	;sfx channel info
+	;
+fx_status	rs.w	1
+fx_priority	rs.w	1
+fx_sfx	rs.l	1
+fx_vol	rs.w	1
+fx_offset	rs.w	1
+fx_dma	rs.w	1
+fx_int	rs.w	1
+	;
+fx_size	rs.b	0
+
+	rsreset
+	;
+	;blood!
+	;
+bl_next	rs.l	1
+bl_prev	rs.l	1
+bl_x	rs.l	1
+bl_y	rs.l	1
+bl_z	rs.l	1
+bl_xvec	rs.l	1
+bl_yvec	rs.l	1
+bl_zvec	rs.l	1
+bl_color	rs.l	1
+	;
+bl_size	rs.b	0
+
+	rsreset
+	;
+	;a texture
+	;
+te_pal	rs.l	1
+	;
+te_size	rs.b	0
+
+	rsreset
+	;
+	;an opening/closing door!
+	;
+do_next	rs.l	1
+do_prev	rs.l	1
+do_poly	rs.l	1	;door polygon
+do_lx	rs.w	1
+do_lz	rs.w	1
+do_rx	rs.w	1
+do_rz	rs.w	1
+do_frac	rs.w	1
+do_fracadd	rs.w	1
+	;
+do_size	rs.b	0
+
+	rsreset
+	;
+	;wall list...
+	;
+wl_next	rs.l	1
+wl_lsx	rs.w	1	;leftmost screen X
+wl_rsx	rs.w	1	;rightmost screen X
+wl_nz	rs.w	1	;near Z!
+wl_fz	rs.w	1	;far Z!
+wl_lx	rs.w	1
+wl_lz	rs.w	1
+wl_rx	rs.w	1
+wl_rz	rs.w	1
+wl_a	rs.w	1
+wl_b	rs.w	1
+wl_c	rs.l	1
+wl_sc	rs.w	1
+wl_open	rs.w	1	;0=door shut, $7fff=open!
+wl_prec	rs.w	1	;precision info.
+wl_pad	rs.w	1
+wl_t	rs.b	8	;textures
+	;
+wl_size	rs.b	0
+
+	rsreset
+	;
+	;a zone...
+	;
+zo_done	rs.w	1
+zo_lx	rs.w	1
+zo_lz	rs.w	1
+zo_rx	rs.w	1
+zo_rz	rs.w	1
+	;
+zo_a	rs.w	1
+zo_b	rs.w	1
+zo_na	rs.w	1
+zo_nb	rs.w	1
+zo_ln	rs.w	1
+	;
+zo_t	rs.b	8	;8 textures
+	;
+zo_sc	rs.w	1
+zo_open	rs.w	0	;for wall polys...
+zo_ev	rs.w	1	;for events...
+	;
+zo_size	rs.b	0	;32!
+
+	rsreset
+	;
+	;a shape to draw!
+	;
+sh_next	rs.l	1
+sh_prev	rs.l	1
+sh_x	rs.w	1
+sh_y	rs.w	1
+sh_z	rs.w	1
+sh_shape	rs.l	1
+sh_scale	rs.w	0
+sh_strip	rs.l	1
+	;
+sh_size	rs.b	0
+
+	rsreset
+	;
+	;gore...body parts lying around!
+	;
+go_next	rs.l	1
+go_prev	rs.l	1
+go_x	rs.w	1
+go_z	rs.w	1
+go_shape	rs.l	1
+	;
+go_size	rs.b	0
+
+	rsreset
+	;
+	;an object in the game (player/alien etc...)
+	;
+ob_next	rs.l	1
+ob_prev	rs.l	1
+ob_x	rs.l	1
+ob_y	rs.l	1
+ob_z	rs.l	1
+ob_rot	rs.l	1
+	;
+	;start of info load by prog.
+ob_info	rs.b	0
+	;
+ob_rotspeed	rs.l	1
+ob_movspeed	rs.l	1
+ob_shape	rs.l	1
+ob_logic	rs.l	1
+ob_render	rs.l	1
+ob_hit	rs.l	1	;routine to do when damaged
+ob_die	rs.l	1	;routine to do when killed
+ob_eyey	rs.w	1	;eye height
+ob_firey	rs.w	1	;where bullets come from
+ob_gutsy	rs.w	1
+ob_othery	rs.w	1
+ob_colltype	rs.w	1
+ob_collwith	rs.w	1
+ob_cntrl	rs.w	1
+ob_damage	rs.w	1
+ob_hitpoints	rs.w	1
+ob_think	rs.w	1
+ob_frame	rs.l	1	;anim frame
+ob_framespeed	rs.l	1	;anim frame
+ob_base	rs.w	1
+ob_range	rs.w	1
+ob_weapon	rs.w	1	;weapon meter...
+ob_wlevel	rs.w	1	;weapon type (0...4)
+ob_hurtpause	rs.w	1
+ob_firerate	rs.w	0
+ob_punchrate	rs.w	1
+ob_bouncecnt	rs.w	1	;how many times my bullets bounce!
+ob_firecnt	rs.w	0
+ob_something	rs.w	1
+ob_scale	rs.w	1	;scale factor for drawing
+ob_apad	rs.w	1
+	;
+ob_acc	rs.l	1
+ob_oldlogic	rs.l	1
+ob_oldlogic2	rs.l	1
+ob_oldhit	rs.l	1
+ob_olddie	rs.l	1
+ob_oldrot	rs.w	1
+ob_newrot	rs.w	1
+ob_yvec	rs.l	1
+ob_xvec	rs.l	1
+ob_zvec	rs.l	1
+ob_radsq	rs.l	1	;radius squared
+ob_rad	rs.w	1
+ob_delay	rs.w	1
+ob_delay2	rs.w	0
+ob_bounce	rs.w	1
+ob_hurtwait	rs.w	1
+	;
+ob_washit	rs.l	1	;flag for un-hit coll detect!
+ob_window	rs.l	1	;pointer back to window!
+ob_nxvec	rs.w	0	;normalized X vec
+ob_lives	rs.w	1
+ob_nzvec	rs.w	0	;nomralized z vec
+ob_infra	rs.w	1
+ob_thermo	rs.w	1
+ob_invisible	rs.w	1
+ob_hyper	rs.w	1
+ob_update	rs.w	1	;update stats!
+ob_mess	rs.l	1	;message
+ob_messlen	rs.w	1
+ob_messtimer	rs.w	1	;timer for messages
+ob_palette	rs.l	1	;palette for window
+ob_paltimer	rs.w	1	;timer before back to normal
+ob_pixsize	rs.w	1
+ob_pixsizeadd	rs.w	1
+ob_telex	rs.w	1
+ob_telez	rs.w	1
+ob_telerot	rs.w	1
+ob_chunks	rs.l	1
+	;
+ob_size	rs.b	0
+
+	rsreset
+	;
+	;solid wall draw data
+	;
+vd_z	rs.w	1	;current Z
+vd_pal	rs.w	1	;palette# (0...15)
+vd_y	rs.w	1
+vd_h	rs.w	1
+vd_data	rs.l	1
+vd_ystep	rs.l	1
+	;
+vd_size	rs.b	0
+
+	rsreset
+	;
+	;palette file...
+	;
+pa_numcols	rs.w	1	;how many colours
+pa_cols	rs.w	256	;the colours!
+
+	rsreset
+	;
+	;anim file...
+	;
+an_rotshft	rs.w	1
+an_frames	rs.w	1
+an_maxw	rs.w	1
+an_maxh	rs.w	1
+an_pal	rs.l	1
+	;
+an_size	rs.b	0
+
+	rsreset
+	;
+	;window
+	;
+wi_slice	rs.l	1	;slice window appears in!
+wi_nslice	rs.l	1	;next slice to disp.
+wi_x	rs	1
+wi_y	rs	1
+wi_w	rs	1	;how many chixels across
+wi_h	rs	1	;how many down
+wi_pw	rs	1	;width of 1 chixel
+wi_ph	rs	1	;hite of 1 chixel
+	;
+wi_bw	rs	1	;bitmap width
+wi_bh	rs	1	;bitmap height
+	;
+wi_bmapmem	rs.l	1
+wi_copmem	rs.l	1
+wi_bmap	rs.l	1
+wi_cop	rs.l	1
+wi_cop1	rs.l	1
+wi_cop2	rs.l	1
+wi_copmod	rs.w	1
+	;
+wi_strip	rs.l	1
+wi_iff	rs.l	1	;show iff instead!
+wi_pal	rs.l	1	;palette for IFF!
+	;
+wi_size	rs.b	0
+
+key	macro
+	btst	#\1&7,\1>>3(a0)
+	endm
+
+qkey	macro
+	move.l	rawtable(pc),a0
+	key	\1
+	endm
+
+freemem	macro
+	;
+	ifne	debugmem
+	lea	.fmem\@,a0
+	jsr	freemem_
+	bra	.fmemskip\@
+.fmem\@	dc.b	'\1',0
+	even
+.fmemskip\@	;
+	elseif
+	jsr	freemem_
+	endc
+	;
+	endm
+
+allocmem	macro
+	;
+	ifne	debugmem
+	;
+	lea	.amem\@,a0
+	jsr	allocmem_
+	bra	.amemskip\@
+.amem\@	dc.b	'\1',10,0
+	even
+.amemskip\@	;
+	elseif
+	;
+	jsr	allocmem_
+	;
+	endc
+	;
+	endm
+
+allocmem2	macro
+	;
+	ifne	debugmem
+	;
+	lea	.amem\@,a0
+	jsr	allocmem2_
+	bra	.amemskip\@
+.amem\@	dc.b	'\1',10,0
+	even
+.amemskip\@	;
+	elseif
+	;
+	jsr	allocmem2_
+	;
+	endc
+	;
+	endm
+
+alloclist	macro	;alloclist listname,maxitems,itemsize
+	;
+	move.l	\2,d0
+	move.l	\3,d1
+	lea	\1(pc),a2
+	jsr	k_alloclist
+	bra.s	alskip\@
+	;
+\1	dc.l	0	;0
+\1_last	dc.l	0	;4
+	dc.l	0	;8
+\1_free	dc.l	0	;12
+alskip\@	;
+	endm
+
+k_alloclist	;a2=address of 'first' pointer
+	;d0=max items, d1=item size
+	;
+	move.l	a2,8(a2)	;clear out used list
+ 	lea	4(a2),a0
+	clr.l	(a0)
+	move.l	a0,(a2)
+	movem.l	d0-d1,-(a7)
+	mulu	d1,d0
+	move.l	#$10001,d1
+	allocmem	alloclist
+	move.l	d0,a0
+	lea	12(a2),a2
+	movem.l	(a7)+,d0-d1
+	subq	#1,d0
+.loop	move.l	a0,(a2)
+	move.l	a0,a2
+	add	d1,a0
+	dbf	d0,.loop
+	rts
+
+addnext	macro
+	;
+	;addnext 'listname'
+	;add after a5
+	;return eq if none available else a0
+	;
+	move.l	\1_free,d0
+	beq.s	.anskip\@
+	move.l	d0,a0
+	move.l	(a0),\1_free
+	move.l	(a5),a1
+	move.l	a1,(a0)
+	move.l	a0,4(a1)
+	move.l	a0,(a5)
+	move.l	a5,4(a0)
+.anskip\@	;
+	endm
+
+addfirst	macro
+	;
+	;addfirst 'listname'
+	;return eq if none available else a0
+	;
+	move.l	\1_free,d0
+	beq.s	.afskip\@
+	move.l	d0,a0
+	move.l	(a0),\1_free
+	move.l	\1,a1	;current first
+	move.l	a1,(a0)
+	move.l	a0,4(a1)
+	move.l	a0,\1
+	move.l	#\1,4(a0)
+.afskip\@	;
+	endm
+
+addlast	macro
+	;
+	;addlast 'listname'
+	;return eq in none available else a0
+	;
+	move.l	\1_free,d0
+	beq.s	.alskip\@
+	move.l	d0,a0
+	move.l	(a0),\1_free
+	;
+	move.l	\1_last+4,a1	;current last
+	move.l	a0,(a1)
+	move.l	a1,4(a0)
+	move.l	a0,\1_last+4
+	move.l	#\1_last,(a0)
+.alskip\@	;
+	endm
+
+killitem	macro
+	;
+	;killitem listname
+	;a0=item to kill, return a0=previous item.
+	;
+	move.l	(a0),a1	;next of me!
+	move.l	4(a0),4(a1)
+	move.l	4(a0),a1	;prev of me
+	move.l	(a0),(a1)
+	move.l	\1_free,(a0)
+	move.l	a0,\1_free
+	move.l	a1,a0
+	endm
+	
+clearlist	macro
+	;
+	;clearlist listname
+	;
+.clloop\@	move.l	\1,a0
+	tst.l	(a0)
+	beq	.cldone\@
+	killitem	\1
+	bra	.clloop\@
+.cldone\@	;
+	endm
+
+
+
+bwait	macro
+	;
+.bwait\@	btst	#6,$dff002
+	beq.s	.bwait2\@
+	bra.s	.bwait\@
+.bwait2\@	;
+	endm
+
+printlong	macro
+	move.l	\1,-(a7)
+	jsr	printlong_
+	endm
+
+check	macro
+	list
+check	set	*-\1
+	nolist
+	endm
+
+push	macro
+	movem.l	d2-d7/a2-a6,-(a7)
+	endm
+
+pull	macro
+	movem.l	(a7)+,d2-d7/a2-a6
+	endm
+
+col	macro
+	move	#0,$dff106
+	move	\1,$dff180
+	endm
+
+warn	macro
+	move	d0,-(a7)
+	move	#-1,d0
+.wloop\@	col	\1
+	dbf	d0,.wloop\@
+	move	(a7)+,d0
+	endm
+
+tempfile	ds.b	64
+
+entrypoint
+cli	;
+	move.l	a0,a2
+	;
+	lea	dosname,a1
+	move.l	4.w,a6
+	jsr	-408(a6)
+	move.l	d0,dosbase
+	;
+	move.l	d0,a6
+	jsr	-60(a6)
+	move.l	d0,outhand
+	;
+	clr.l	map_test
+	cmp.b	#'@',(a2)+
+	bne.s	main
+	lea	tempfile,a0
+	move.l	a0,map_test
+.loop	move.b	(a2)+,(a0)
+	beq.s	main
+	cmp.b	#10,(a0)+
+	bne.s	.loop
+	clr.b	-(a0)
+main	;
+	bsr	bigfont
+	jsr	initmain
+	;
+.intro	move.l	medat(pc),a1
+	move.l	titlemed(pc),a0
+	jsr	8(a1)
+	;
+	jsr	dointro	;returns gametype
+	cmp	#3,gametype
+	bcs.s	.play
+	;
+	move.l	medat(pc),a1
+	jsr	12(a1)
+	bra.s	exittoos
+.play	;
+	bsr	initnewgame
+	;
+	move	#$4000,fadevol
+	;
+	bsr	smallfont
+	bsr	execscript
+	bsr	bigfont
+	;
+	bra	.intro
+	;
+exittoos	bsr	freeobjlist2
+	bsr	permit
+	move.l	rawstuff,a0
+	bclr	#0,$3d(a0)
+	bsr	finitsfx
+	bsr	finitvbint
+	bsr	finitdisplay
+	bsr	freememlist
+	bsr	undir
+	rts
+
+smallfont	move	#6,fontw
+	move	#8,fonth
+	clr	fontoff
+	rts
+
+bigfont	move	#8,fontw
+	move	#10,fonth
+	move	#51,fontoff
+	rts
+
+; ************* FAST SUBS ********************
+	
+fastsubs
+
+sfxs
+sfx0	ds.b	fx_size
+sfx1	ds.b	fx_size
+sfx2	ds.b	fx_size
+sfx3	ds.b	fx_size
+
+sfxintserver0	dc.l	0,0
+	dc.b	2,0
+	dc.l	0
+	dc.l	sfx0
+	dc.l	sfxint
+
+sfxintserver1	dc.l	0,0
+	dc.b	2,0
+	dc.l	0
+	dc.l	sfx1
+	dc.l	sfxint
+
+sfxintserver2	dc.l	0,0
+	dc.b	2,0
+	dc.l	0
+	dc.l	sfx2
+	dc.l	sfxint
+
+sfxintserver3	dc.l	0,0
+	dc.b	2,0
+	dc.l	0
+	dc.l	sfx3
+	dc.l	sfxint
+
+initsfx	push
+	move.l	4.w,a6
+	;
+	moveq	#7,d0
+	lea	sfxintserver0,a1
+	jsr	-162(a6)	;setintvector
+	;
+	moveq	#8,d0
+	lea	sfxintserver1,a1
+	jsr	-162(a6)
+	;
+	moveq	#9,d0
+	lea	sfxintserver2,a1
+	jsr	-162(a6)
+	;
+	moveq	#10,d0
+	lea	sfxintserver3,a1
+	jsr	-162(a6)
+	;
+	lea	sfxs(pc),a1
+	move	#$80,d0
+	moveq	#1,d1
+	moveq	#0,d2
+	moveq	#3,d3
+.loop	bsr	.init
+	lea	fx_size(a1),a1
+	dbf	d3,.loop
+	;
+	pull
+	rts
+	;
+.init	clr	fx_status(a1)
+	move	d0,fx_int(a1)
+	move	d1,fx_dma(a1)
+	move	d2,fx_offset(a1)
+	add	d0,d0
+	add	d1,d1
+	add	#16,d2
+	rts
+
+finitsfx	push
+	move.l	4.w,a6
+	;
+	moveq	#7,d0
+	sub.l	a1,a1
+	jsr	-162(a6)
+	;
+	move.l	4.w,a6
+	moveq	#8,d0
+	sub.l	a1,a1
+	jsr	-162(a6)
+	;
+	move.l	4.w,a6
+	moveq	#9,d0
+	sub.l	a1,a1
+	jsr	-162(a6)
+	;
+	move.l	4.w,a6
+	moveq	#10,d0
+	sub.l	a1,a1
+	jsr	-162(a6)
+	;
+	pull
+	rts
+
+playsfx	;sfx file in a0, vol in d0, priority in d1
+	;
+	move	#$4000,$dff09a
+	lea	sfxs(pc),a1
+	moveq	#3,d2
+.loop	tst	fx_status(a1)
+	beq.s	makesfx
+	lea	fx_size(a1),a1
+	dbf	d2,.loop
+	;
+	;OK, none free...check priorities
+	;
+	lea	sfxs(pc),a1
+	moveq	#3,d2
+.loop2	cmp	fx_priority(a1),d1
+	bgt.s	queuesfx
+	lea	fx_size(a1),a1
+	dbf	d2,.loop2
+	;
+	;no-can-do!
+	;
+	move	#$c000,$dff09a
+	rts
+	;
+queuesfx	;OK, turn off other and play US!
+	;
+	move	#1,fx_status(a1)
+	move	d0,fx_vol(a1)
+	move	d1,fx_priority(a1)
+	move.l	a0,fx_sfx(a1)	;play me next!
+	;
+	bsr	sfxoff
+	;
+	move	#$c000,$dff09a
+	rts
+
+sfxoff	lea	$dff0a0,a2
+	add	fx_offset(a1),a2
+	move.l	chipzero(pc),(a2)
+	move	#1,4(a2)	;len
+	move	#0,8(a2)	;vol
+	move	fx_int(a1),$dff09a
+	move	fx_dma(a1),$dff096
+	rts
+
+makesfx	;OK, play this SFX NOW!
+	;
+	move	d1,fx_priority(a1)
+	move	d0,fx_vol(a1)
+	bsr	playsfxnow
+	move	#$c000,$dff09a
+	rts
+
+playsfxnow	move	#-2,fx_status(a1)
+	;
+	lea	$dff0a0,a2
+	add	fx_offset(a1),a2
+	move	(a0)+,6(a2)	;period
+	move	(a0)+,4(a2)	;len
+	move	fx_vol(a1),8(a2)	;vol
+	move.l	a0,(a2)	;data
+	;
+	move	fx_dma(a1),d0	;dma bits
+	or	#$8000,d0
+	move	fx_int(a1),d1	;int bits
+	move	d1,d2
+	or	#$8000,d1
+	;
+	move	d0,$dff096	;dma on!
+	move	d1,$dff09a	;int en
+	move	d2,$dff09c	;intreq clr
+	;
+	rts
+
+sfxint	;interupt for sfx!
+	;
+	tst	fx_status(a1)
+	bge.s	.skip
+	addq	#1,fx_status(a1)
+	blt.s	.skip
+	;
+	move.l	a2,-(a7)
+	bsr	sfxoff
+	move.l	(a7)+,a2
+	;
+.skip	move	fx_int(a1),$dff09c
+	moveq	#0,d0
+	rts
+
+sfxvbint	movem.l	d2-d3/a1-a2,-(a7)
+	lea	sfxs(pc),a1
+	moveq	#3,d3
+.loop	tst	fx_status(a1)
+	ble.s	.skip
+	;
+	;this one queued! gotta play it...
+	;
+	subq	#1,fx_status(a1)
+	bgt.s	.skip
+	move.l	fx_sfx(a1),a0
+	bsr	playsfxnow
+	;
+.skip	lea	fx_size(a1),a1
+	dbf	d3,.loop
+	;
+	movem.l	(a7)+,d2-d3/a1-a2
+	rts
+
+dogamemenu	;
+	st	paused
+	;
+	move.l	player1,a5
+	move.l	ob_palette(a5),-(a7)
+	move.l	#palettesw,ob_palette(a5)
+	move.l	ob_window(a5),a2
+	bsr	plotwbmap
+	;
+	tst	gametype
+	beq	.p1
+	;
+	move.l	player2,a5
+	move.l	ob_palette(a5),-(a7)
+	move.l	#palettesw,ob_palette(a5)
+	move.l	ob_window(a5),a2
+	bsr	plotwbmap
+.p1	;
+	bsr	drawall2
+	;
+	move.l	player1,a5
+	lea	gamemenu,a4
+	move.l	ob_window(a5),a6
+	jsr	initmenu
+	;
+.loop	bsr	selmenu
+	beq	.done
+	;
+	subq	#1,d0
+	bne	.notpsize
+	bsr	newpsize
+	bra	.loop
+	;
+.notpsize	subq	#1,d0
+	bne	.notwsize
+	bsr	newwsize
+	bra	.loop
+	;
+.notwsize	subq	#1,d0
+	bne	.notlwin
+	bsr	largewin
+	bra	.loop
+	;
+.notlwin	subq	#1,d0
+	bne	.notfloor
+	;
+	addq	#1,floorflag
+	cmp	#2,floorflag
+	bne.s	.fskip
+	move	#-1,floorflag
+.fskip	bsr	refresh
+	bra	.loop
+	;
+.notfloor	subq	#1,d0
+	bne	.notroof
+	;
+	addq	#1,roofflag
+	cmp	#2,roofflag
+	bne.s	.rskip
+	move	#-1,roofflag
+.rskip	bsr	refresh
+	bra	.loop
+.notroof	;
+	;MUST BE QUIT GAME!
+	;
+	move	#1,finished
+	;
+.done	bsr	finitmenu
+	;
+	tst	gametype
+	beq.s	.p12
+	;
+	move.l	player2,a5
+	move.l	(a7)+,ob_palette(a5)
+	move.l	ob_window(a5),a2
+	bsr	plotwbmap
+	bsr	initstats
+	bsr	showstats
+.p12	;
+	move.l	player1,a5
+	move.l	(a7)+,ob_palette(a5)
+	move.l	ob_window(a5),a2
+	bsr	plotwbmap
+	bsr	initstats
+	bsr	showstats
+	;
+	clr	paused
+	rts
+
+freewindows	lea	window1,a0
+	bsr	freewindow
+	tst	gametype
+	beq.s	.p1
+	lea	window2,a0
+	bsr	freewindow
+.p1	rts
+
+largewin	move.l	player1,a5
+	bsr	large
+	tst	gametype
+	beq	refresh
+	move.l	player2,a5
+	bsr	large
+	bra	refresh
+
+large	move.l	ob_window(a5),a6
+	move	wi_pw(a6),d2
+	;
+	cmp	#2,d2
+	beq	.lhr
+	;
+	;large lo-res window!
+	;
+	move	#324,d0
+	move	#240,d1
+	bra	thinkwin
+	;
+.lhr	move	#180,d0
+	move	#240,d1
+	bra	thinkwin
+
+newwsize	;window size stuff!
+	;
+	move.l	player1,a5
+	bsr	swapwsize
+	tst	gametype
+	beq	refresh
+	move.l	player2,a5
+	bsr	swapwsize
+	bra	refresh
+
+swapwsize	;increment window size!
+	;
+	move.l	ob_window(a5),a6
+	movem	wi_w(a6),d0-d1	;w,h
+	move	wi_pw(a6),d2
+	mulu	d2,d0
+	mulu	d2,d1
+	cmp	#2,d2
+	beq	.hr
+	;
+	;lo-res!
+	;
+	cmp	#318,d0
+	bcs.s	.inc
+	move	#132,d0
+	move	d0,d1
+	bra	thinkwin
+.inc	add	#24,d0
+	move	d0,d1
+	cmp	#240,d1
+	bls	thinkwin
+	move	#240,d1
+	bra	thinkwin
+	;
+.hr	cmp	#180,d0
+	bcs.s	.inc2
+	tst	gametype
+	bne	.min
+	add	#18,d1
+	cmp	#240,d1
+	bls	thinkwin
+.min	move	#132,d0
+	move	d0,d1
+	bra	thinkwin
+.inc2	add	#24,d0
+	move	d0,d1
+	;
+thinkwin	move	#180,d3	;max width!
+	cmp	#2,d2
+	beq	.gmax
+	move	#318,d3
+.gmax	cmp	d3,d0
+	bls	.nm
+	move	d3,d0
+.nm	;
+	cmp	#240,d1
+	bls	.n240
+	move	#240,d1
+.n240	tst	gametype
+	beq.s	.ggt
+	move	#120,d1
+.ggt	;
+	move	#160,d3
+	move	d0,d4
+	lsr	#1,d4
+	sub	d4,d3	;wi_x
+	move	d3,wi_x(a6)
+	;
+	ext.l	d0
+	divu	d2,d0
+	move	d0,wi_w(a6)
+	;
+	tst	gametype
+	bne.s	.skip3
+	;
+	move	#166,d3
+	move	d1,d4
+	lsr	#1,d4
+	sub	d4,d3
+	move	d3,wi_y(a6)
+	;		
+.skip3	ext.l	d1
+	divu	d2,d1
+	move	d1,wi_h(a6)
+	;
+	rts
+
+newpsize	;toggle pixel size between 2 and 3
+	;
+	;copy windows to temp so we can free 'em up later
+	;
+	move.l	player1,a5
+	bsr	swappsize
+	tst	gametype
+	beq	refresh
+	move.l	player2,a5
+	bsr	swappsize
+	;
+refresh	bsr	dispoff
+	bsr	finitmenu
+	;
+	bsr	freewindows
+	bsr	putwindow
+	bsr	calcbpos
+	;
+	lea	window1,a0
+	bsr	makewindow
+	lea	window1,a0
+	bsr	showwindow
+	;
+	tst	gametype
+	beq.s	.p1
+	;
+	lea	window2,a0
+	bsr	makewindow
+	lea	window2,a0
+	bsr	showwindow
+	;
+.p1	lea	gamemenu,a4
+	lea	window1,a6
+	jsr	initmenu2
+	;
+	bsr	drawall2
+	bsr	dispon
+	rts
+
+swappsize	move.l	ob_window(a5),a6
+	movem	wi_w(a6),d0-d1	;w,h
+	move	wi_pw(a6),d2
+	mulu	d2,d0
+	mulu	d2,d1
+	eor	#1,d2	;2,3...
+	move	d2,wi_pw(a6)
+	move	d2,wi_ph(a6)
+	;
+	bra	thinkwin
+
+drawall2	bsr	drawall
+	bsr	drawall
+.wait	tst	showflag
+	bne.s	.wait
+	rts
+
+drawall	tst	doneflag
+	beq.s	drawall	;wait for updated!
+	clr	doneflag
+	;
+	move.l	memory(pc),memat
+	move.l	player1(pc),a5
+	bsr	calcscene
+	move.l	player1(pc),a5
+	bsr	blitscene
+	move.l	player1(pc),a5
+	bsr	drawscene
+	;
+	move	gametype(pc),d0
+	beq.s	.p1
+	;
+	move.l	memory(pc),memat
+	move.l	player2(pc),a5
+	bsr	calcscene
+	move.l	player2(pc),a5
+	bsr	blitscene
+	move.l	player2(pc),a5
+	bsr	drawscene
+	;
+.p1	st	showflag
+	;
+	rts
+
+resetplayer	st	ob_update(a5)
+	clr	ob_thermo(a5)
+	clr	ob_infra(a5)
+	clr	ob_invisible(a5)
+	clr	ob_messtimer(a5)
+	clr	ob_pixsize(a5)
+	clr	ob_pixsizeadd(a5)
+	move.l	#palettes,ob_palette(a5)
+	rts
+
+initplayer	bsr	resetplayer
+	bsr	calcwlevel
+	bra	initstats
+
+calcwlevel	moveq	#0,d0
+	move.b	ob_weapon(a5),d0
+	beq.s	.wlg
+	subq	#1,d0
+	divu	#5,d0
+	lsl	#4,d0
+.wlg	move	d0,ob_wlevel(a5)
+	rts
+
+message	;print up a message...player in a5
+	;
+	move.l	(a7),a0	;return address=message!
+	move.l	a0,ob_mess(a5)
+	;
+	moveq	#-1,d0
+.loop	addq	#1,d0
+	tst.b	(a0)+
+	bne.s	.loop
+	;
+	move	d0,ob_messlen(a5)
+	move	#-127,ob_messtimer(a5)
+	;
+	move.l	a0,d0
+	addq.l	#1,d0
+	and	#$fffe,d0
+	move.l	d0,(a7)
+	rts
+
+pdelay	dc	0	;non zero=wait between prints
+
+printmess	;a5=object
+	;
+	move.l	ob_window(a5),a6
+	move.l	ob_mess(a5),a4
+	move	ob_messlen(a5),d0
+	move	wi_bh(a6),d6
+	lsr	#2,d6	;Y
+	;
+printmess2	;a6=window, a4=message, d0=length of message, d6=Y
+	;
+	move	fontw(pc),d2
+	lsr	#1,d2
+	mulu	d2,d0
+	move	#160,d7
+	sub	d0,d7	;X
+	;
+.loop2	move.b	(a4)+,d2
+	beq.s	.done
+	cmp.b	#' ',d2
+	beq.s	.spc
+	cmp.b	#'0',d2
+	bcs.s	.nnum
+	cmp.b	#'9',d2
+	bhi.s	.nnum
+	sub.b	#'0',d2
+	ext	d2
+	bra.s	.here
+.nnum	cmp.b	#'!',d2
+	bne.s	.notex
+	moveq	#65+26,d2
+	bra.s	.notfs
+.notex	cmp.b	#'.',d2
+	bne.s	.notfs
+	moveq	#65+27,d2
+.notfs	and	#31,d2
+	add	#17,d2
+.here	add	fontoff(pc),d2
+	move.l	font(pc),a0
+	move.l	wi_bmap(a6),a1
+	move	d7,d0
+	move	d6,d1
+	bsr	blit
+	;
+	move	pdelay(pc),d2
+	subq	#1,d2
+	bmi.s	.spc
+	;
+.pdloop	bsr	vwait
+	bsr	checkany
+	beq.s	.none
+	move	#-1,pdelay
+	moveq	#0,d2
+.none	dbf	d2,.pdloop
+	;
+.spc	add	fontw(pc),d7
+	bra.s	.loop2
+.done	;
+	rts
+
+initstats	move.l	ob_window(a5),a0
+	moveq	#2,d0
+	add	wi_x(a0),d0
+	move.l	wi_bmap(a0),a1
+	move.l	font(pc),a0
+	moveq	#2,d1
+	moveq	#10,d2
+	bsr	blit
+	;
+	move.l	ob_window(a5),a0
+	moveq	#2,d0
+	add	wi_x(a0),d0
+	move.l	wi_bmap(a0),a1
+	move.l	font(pc),a0
+	moveq	#10,d1
+	moveq	#11,d2
+	;
+	bsr	blit
+	;
+	rts
+
+putstrip	;a0=window
+	;
+	move.l	wi_bmap(a0),a1
+	move	wi_bh(a0),d0
+	lsr	#2,d0
+	mulu	#7*40,d0
+	add.l	d0,a1		;dest
+	move.l	wi_strip(a0),a0	;src
+	;
+	btst	#6,$dff002
+.bwait	btst	#6,$dff002
+	bne.s	.bwait
+	;
+	move.l	#$9f00000,$dff040
+	move.l	#-1,$dff044
+	move	#0,$dff064
+	move	#0,$dff066
+	move.l	a0,$dff050
+	move.l	a1,$dff054
+	move	#(7*7)<<6+20,$dff058
+	rts
+
+showstats	;a5=player
+	;
+	;show health!
+	;
+	moveq	#2,d5
+	move	ob_hitpoints(a5),d6
+	bsr	showlevel
+	;
+	moveq	#10,d5
+	move	ob_weapon(a5),d6
+	lsr	#8,d6
+	bsr	showlevel
+	;
+	cmp	#2,gametype
+	bne.s	.rts
+	;
+	movem	wins1(pc),d6-d7
+	cmp.l	player1,a5
+	beq.s	.skip
+	exg	d6,d7
+.skip	sub	d7,d6
+	ble.s	.rts
+	;
+	subq	#1,d6
+	move.l	ob_window(a5),a0
+	move	wi_bw(a0),d7
+	subq	#2,d7
+	;
+.loop	subq	#6,d7
+	move	d7,d0
+	move.l	ob_window(a5),a0
+	add	wi_x(a0),d0
+	moveq	#2,d1
+	moveq	#50,d2
+	move.l	wi_bmap(a0),a1
+	move.l	font(pc),a0
+	bsr	blit
+	dbf	d6,.loop
+	;
+.rts	rts
+
+showlevel	moveq	#47,d7
+	ext.l	d6
+	divu	#5,d6
+	subq	#1,d6
+	bmi.s	.skip
+	;
+.loop	moveq	#12,d2
+	bsr	drawh
+	dbf	d6,.loop
+.skip	;
+	swap	d6
+	tst	d6
+	beq.s	.rest
+	moveq	#17,d2
+	sub	d6,d2
+	bsr	drawh
+	;
+.rest	cmp	#47+6*5,d7
+	bcc.s	.hdone
+	moveq	#17,d2
+	bsr	drawh
+	bra.s	.rest
+.hdone	;
+	rts
+
+drawh	move.l	ob_window(a5),a0
+	move	d7,d0
+	move	d5,d1
+	add	wi_x(a0),d0
+	move.l	wi_bmap(a0),a1
+	move.l	font(pc),a0
+	addq	#6,d7
+	;
+blit	;a0=shapetable to blit, a1=bitmap, d0=X, d1=Y, d2=char
+	;
+	add.l	4(a0,d2*4),a0
+	;
+	mulu	#280,d1
+	add.l	d1,a1
+	move	d0,d2
+	asr	#3,d2
+	add	d2,a1	;dest!
+	move.l	a0,a2
+	add.l	(a0),a2
+	lea	8(a0),a3
+	addq	#4,a0
+	and	#15,d0
+	ror	#4,d0
+	;
+	btst	#6,$dff002
+.bwait	btst	#6,$dff002
+	bne.s	.bwait
+	;
+	move.l	a2,$dff050
+	move.l	a3,$dff04c
+	move.l	a1,$dff048
+	move.l	a1,$dff054
+	;
+	move	d0,$dff042
+	or	#$fca,d0
+	move	d0,$dff040
+	move.l	#$ffff0000,$dff044
+	moveq	#-2,d0
+	move	d0,$dff064
+	move	d0,$dff062
+	moveq	#38,d0
+	sub	(a0)+,d0
+	move	d0,$dff060
+	move	d0,$dff066
+	move	(a0)+,$dff058
+	;
+	rts
+
+pixsize	dc	0	;pixel size...at least 2!
+
+pixelate	;pixel out the coplist!
+	;
+	move	pixsize(pc),d1	;x/y add
+	;
+	;pixel out vertically, then horizontally
+	;
+	move.l	cop(pc),a0
+	lea	coloffs(pc),a1
+	moveq	#0,d2	;x
+	move	d1,d6
+	lsr	#1,d6
+.forx	;
+	move.l	a0,a3
+	lea	0(a1,d2*4),a2
+	add.l	(a2),a3
+	;
+	move	d2,d5
+	add	d6,d5
+	cmp	width(pc),d5
+	ble.s	.xok
+	move	width(pc),d5
+.xok	sub	d2,d5
+	ble	.done
+	subq	#1,d5
+	;	
+.loop2	moveq	#0,d3
+	move.l	a3,a4
+	move.l	a0,a5
+	add.l	(a2)+,a5
+	move	d1,d7
+	lsr	#1,d7	;first Y add
+.fory	;
+	move	(a4),d0	;start column!
+	move	d3,d4
+	add	d7,d4
+	cmp	hite(pc),d4
+	ble.s	.yok
+	move	hite(pc),d4
+.yok	sub	d3,d4
+	ble	.nextx
+	subq	#1,d4
+	;
+.loop	move	d0,(a5)
+	add	copmod(pc),a4
+	add	copmod(pc),a5
+	;
+	dbf	d4,.loop
+	;
+.nexty	add	d7,d3
+	move	d1,d7
+	bra.s	.fory
+	;
+.nextx	dbf	d5,.loop2
+	;
+	add	d6,d2
+	move	d1,d6
+	bra.s	.forx
+	;
+.done	rts
+
+makeqstrip	;
+	;do a simple roof/floor strip for blitter to wack in...
+	;
+	cmp	#$100,con0poke
+	bne.s	.doit
+	rts
+	;
+.doit	move.l	qstrip(pc),a0
+	move.l	darktable(pc),a1
+	move.l	palette(pc),a2
+	move.l	qstripbot(pc),a4
+	moveq	#0,d2
+	;
+	move	floorflag(pc),d0
+	bne.s	.fdone
+	;
+	move	camy(pc),d0
+	neg	d0
+	ext.l	d0
+	lsl.l	#focshft,d0
+	;
+	move.b	qcols+1(pc),d2
+	move.l	qstripbot(pc),a4
+	move	maxy(pc),d1
+	;
+.floop	subq	#1,d1
+	beq.s	.fdone
+	;
+	move.l	d0,d3
+	divs	d1,d3
+	cmp	#maxz,d3
+	bcc	.fdone
+	;
+	move	0(a1,d3*2),d3	 ;darkness (0...15)
+	move.l	0(a2,d3*4),a3	 ;pal to use
+	move	0(a3,d2*2),-(a4) ;colour!
+	;
+	bra.s	.floop
+	;
+.fdone	move	roofflag(pc),d0
+	bne.s	.rdone
+	;
+	move	#-256,d0
+	sub	camy(pc),d0
+	ext.l	d0
+	lsl.l	#focshft,d0	;cam Y
+	;
+	move.b	qcols(pc),d2
+	;
+	move	miny(pc),d1	;SY
+	;
+.rloop	beq.s	.rdone
+	;
+	move.l	d0,d3
+	divs	d1,d3
+	cmp	#maxz,d3
+	bcc	.rdone
+	;
+	move	0(a1,d3*2),d3	 ;darkness (0...15)
+	move.l	0(a2,d3*4),a3	 ;pal to use
+	move	0(a3,d2*2),(a0)+ ;colour!
+	;
+	addq	#1,d1
+	bra.s	.rloop
+.rdone	;
+	moveq	#0,d0
+.loop	cmp.l	a4,a0
+	bcc.s	.done
+	move.l	d0,(a0)+
+	bra.s	.loop
+	;
+.done	rts
+
+flatcam	dc.l	0
+flatyadd	dc	0
+flatyadd2	dc	0
+
+flat	;
+	;do flat above/below panel!
+	;
+	;d0=Y pos of flat
+	;d1=Screen Y add
+	;d7=first screen Y (miny or maxy-1)
+	;
+	;a0=panel to draw on!
+	;
+	ext.l	d0
+	lsl.l	#focshft,d0
+	move.l	d0,flatcam
+	;
+	move	d1,flatyadd
+	muls	copmod(pc),d1
+	move	d1,flatyadd2
+	;
+	move	d7,d0
+	add	midy(pc),d0
+	mulu	copmod(pc),d0
+	add.l	cop(pc),d0
+	add.l	coloffs(pc),d0
+	move.l	d0,a2
+.vloop	;
+	;find Z on this scanline...
+	;
+	tst	d7
+	beq	.rts
+	move.l	flatcam(pc),d6
+	divs	d7,d6	;d6.w = Z
+	cmp	#maxz,d6
+	bcc	.rts
+	;
+	move.l	darktable(pc),a5
+	move	0(a5,d6*2),d5
+	move.l	palette(pc),a5
+	move.l	0(a5,d5*4),a5
+	;
+	;Find leftmost X...
+	;
+	move	minx(pc),d5
+	muls	d6,d5
+	asr.l	#focshft,d5
+	;
+	move	maxx(pc),d4
+	muls	d6,d4
+	asr.l	#focshft,d4
+	;
+	;rotate X1,Z around camera...
+	;
+	move	d5,d0
+	move	d6,d1
+	;
+	move	d0,d2
+	move	d1,d3
+	;
+	muls	icm1(pc),d0
+	add.l	d0,d0
+	muls	icm2(pc),d3
+	add.l	d3,d3
+	add.l	d3,d0
+	;
+	muls	icm3(pc),d2
+	add.l	d2,d2
+	muls	icm4(pc),d1
+	add.l	d1,d1
+	add.l	d2,d1
+	;
+	;d0,d1.q = rotated x1,z
+	;
+	;rotate X2,Z around camera...
+	;
+	move	d4,d2
+	move	d6,d3
+	;
+	muls	icm1(pc),d4
+	add.l	d4,d4
+	muls	icm2(pc),d3
+	add.l	d3,d3
+	add.l	d3,d4
+	;
+	muls	icm3(pc),d2
+	add.l	d2,d2
+	muls	icm4(pc),d6
+	add.l	d6,d6
+	add.l	d2,d6
+	;
+	;d4,d6.q = rotated x2,z
+	;
+	move	width(pc),d5
+	ext.l	d5
+	sub.l	d0,d4	;Xadd
+	divs.l	d5,d4
+	sub.l	d1,d6	;Zadd
+	divs.l	d5,d6
+	;
+	;d0,d1.q=x,z
+	;d4,d6.q=xadd,zadd
+	;
+	swap	d0
+	add	camx(pc),d0
+	swap	d1
+	add	camz(pc),d1
+	swap	d4
+	swap	d6
+	;
+	move	d7,-(a7)
+	moveq	#127,d7
+	moveq	#0,d2
+	moveq	#0,d3
+	;
+	move.l	a2,a3
+	;
+	move	wdiv32(pc),-(a7)
+	;
+.hloop2	moveq	#31,d5
+	;
+.hloop	tst	(a3)	;check destination!
+	bne.s	.skip
+	;
+	and	d7,d0
+	and	d7,d1	;X/Z for fetch!
+	move	d0,d2
+	lsl	#7,d2
+	lea	0(a0,d2),a6
+	move.b	0(a6,d1),d3
+	move	0(a5,d3*2),(a3)
+	;
+.skip	add.l	d4,d0
+	addx	d2,d0
+	add.l	d6,d1
+	addx	d2,d1
+	addq	#4,a3
+	dbf	d5,.hloop
+	;
+	addq	#4,a3
+	subq	#1,(a7)
+	bgt.s	.hloop2
+	bne.s	.kl
+	;
+	move	wrem32(pc),d5
+	bpl.s	.hloop
+	;
+.kl	move.l	(a7)+,d7
+	add	flatyadd(pc),d7
+	add	flatyadd2(pc),a2
+	bra	.vloop
+	;
+.rts	rts
+
+doanims	move.l	map_anim(pc),a0
+	lea	textures,a1
+	;
+.loop	move	(a0)+,d0	;how many frames
+	beq.s	.done
+	movem	(a0)+,d1-d2	;first, delay
+	subq	#1,(a0)+
+	bgt.s	.loop
+	move	d2,-2(a0)
+	lea	0(a1,d1*4),a2
+	;
+	;do the anim!
+	;
+	subq	#2,d0
+	move.l	(a2),d2
+.loop2	move.l	4(a2),(a2)+
+	dbf	d0,.loop2
+	move.l	d2,(a2)
+	bra.s	.loop
+	;
+.done	rts
+
+dodoors	lea	doors(pc),a5
+	;
+.loop	move.l	(a5),a5
+	tst.l	(a5)
+	beq	.done
+	;
+	move.l	do_poly(a5),a0
+	move	do_fracadd(a5),d0
+	add	d0,do_frac(a5)
+	move	do_frac(a5),d0
+	move	d0,d1
+	add	d1,d1
+	move	d1,zo_open(a0)	;copy frac
+	;
+	move	do_rx(a5),d1
+	sub	do_lx(a5),d1	;width
+	move	d1,d2
+	muls	d0,d2
+	lsl.l	#2,d2
+	swap	d2
+	move	do_lx(a5),d3
+	sub	d2,d3
+	move	d3,zo_lx(a0)
+	add	d1,d3
+	move	d3,zo_rx(a0)
+	;
+	move	do_rz(a5),d1
+	sub	do_lz(a5),d1
+	move	d1,d2
+	muls	d0,d2
+	lsl.l	#2,d2
+	swap	d2
+	move	do_lz(a5),d3
+	sub	d2,d3
+	move	d3,zo_lz(a0)
+	add	d1,d3
+	move	d3,zo_rz(a0)
+	;
+	tst	d0
+	beq.s	.kill
+	cmp	#$4000,d0
+	bne.s	.loop
+	;
+.kill	move.l	a5,a0
+	killitem	doors
+	move.l	a0,a5
+	bra	.loop
+	;
+.done	rts
+
+doorsfxflag	dc	0
+
+execevent	;d0=event number to execute...1,2...
+	;
+	sf	doorsfxflag
+	move.l	map_map(pc),a6
+	;
+	ifne	aga
+	add.l	16(a6,d0*4),a6
+	elseif
+	lsl	#2,d0
+	add.l	16(a6,d0),a6
+	endc
+	;
+exec_loop	move	(a6)+,d0
+	beq.s	.rts
+	subq	#1,d0
+	beq	exec_addobj	;1 - add an object (alien etc)
+	subq	#1,d0
+	beq	exec_opendoor	;2 - open a door
+	subq	#1,d0
+	beq	exec_teleport	;3 - teleport
+	subq	#1,d0
+	beq	exec_loadobjs	;4 - load objects
+	subq	#1,d0
+	beq	exec_changetxt	;5 - change texture
+	;
+	warn	#$f0f
+	;
+.rts	tst	doorsfxflag
+	beq.s	.nodoor
+	clr	doorsfxflag
+	move.l	doorsfx(pc),a0
+	moveq	#64,d0
+	moveq	#2,d1
+	bsr	playsfx
+.nodoor	rts
+
+exec_changetxt	;
+	move	(a6)+,d0	;zone#
+	move.l	map_poly(pc),a1
+	lsl	#5,d0
+	lea	0(a1,d0),a1	;polygon to change
+	;
+	move	(a6)+,d0	;new texture
+	move.b	d0,zo_t(a1)
+	bra	exec_loop
+
+exec_opendoor	st	doorsfxflag
+	addlast	doors	;a0=new door
+	;
+	move	(a6)+,d0	;door #
+	move.l	map_poly(pc),a1
+	lsl	#5,d0
+	lea	0(a1,d0),a1	;polygon to open!
+	;
+	;calc lx add, lz add, rx add, rz add
+	;
+	move.l	a1,do_poly(a0)
+	move.l	zo_lx(a1),do_lx(a0)
+	move.l	zo_rx(a1),do_rx(a0)
+	clr	do_frac(a0)
+	move	#$100,do_fracadd(a0)
+	bra	exec_loop
+
+exec_teleport	move.l	eventobj(pc),a0
+	;
+	move	(a6)+,ob_telex(a0)
+	addq	#2,a6
+	move	(a6)+,ob_telez(a0)
+	move	(a6)+,ob_telerot(a0)
+	;
+	move	#4,ob_pixsizeadd(a0)
+	;
+	bra	exec_loop
+
+exec_loadobjs	;
+.loop	move	(a6)+,d0
+	bmi	.done
+	bsr	loadanobj
+	bra.s	.loop
+.done	;
+	bra	exec_loop
+	
+loadanobj	;d0=object#...sys must be permitted
+	;
+	lea	objinfo,a2
+	mulu	#objinfof-objinfo,d0
+	move.l	_ob_shape-objinfo(a2,d0),a2
+	lea	8(a2),a3	;filename
+	;
+	tst.l	(a2)
+	bne.s	.skip
+	move.l	a3,a0
+	moveq	#1,d1
+	bsr	loadfile
+	move.l	d0,(a2)
+	beq.s	.skip
+	move.l	d0,a0
+	bsr	remapanim
+.skip	;
+	tst.l	4(a2)
+	bne.s	.rts
+	move.l	a3,a0
+.loop	tst.b	(a3)+
+	bne.s	.loop
+	move.b	#'2',-(a3)
+	moveq	#1,d1
+	bsr	loadfile
+	clr.b	(a3)
+	move.l	d0,4(a2)
+	beq.s	.rts
+	move.l	d0,a0
+	bsr	remapanim
+	;
+.rts	rts
+
+exec_addobj	clr.l	dummy
+	move	(a6)+,d0	;monster type
+	lea	objinfo,a2
+	mulu	#objinfof-objinfo,d0
+	add.l	d0,a2
+	move.l	(a2)+,a3
+	tst.l	(a3)
+	beq.s	.ok
+.no	addq	#8,a6
+	bra	exec_loop
+.ok	cmp	#2,-2(a6)	;player?
+	bcc.s	.notp
+	addfirst	objects
+	bra.s	.bum
+.notp	addlast	objects
+.bum	beq.s	.no
+	move.l	a0,a5
+	;
+	move.l	a5,(a3)
+	;
+	move	(a6)+,ob_x(a5)
+	move	(a6)+,ob_y(a5)
+	move	(a6)+,ob_z(a5)
+	move	(a6)+,ob_rot(a5)
+	;
+	lea	ob_info(a5),a3
+	move	#(objinfof-objinfo-4)>>1-1,d0
+.loop	move	(a2)+,(a3)+
+	dbf	d0,.loop
+	;
+	bsr	calcvecs
+	movem.l	d4-d5,ob_xvec(a5)
+	;
+	move.l	ob_shape(a5),a0
+	move.l	4(a0),ob_chunks(a5)
+	move.l	(a0),a0
+	move.l	a0,ob_shape(a5)
+	;
+	move	an_maxw(a0),d0
+	move	d0,ob_rad(a5)
+	mulu	d0,d0
+	move.l	d0,ob_radsq(a5)
+	;
+	clr.l	ob_washit(a5)
+	;
+	bsr	rnddelay
+	;
+	bra	exec_loop
+
+rnddelay	move	ob_range(a5),d0
+	bsr	rndn
+	add	ob_base(a5),d0
+	move	d0,ob_delay(a5)
+	;
+	rts
+
+seedrnd	;seed number in d0.w
+	;
+	moveq	#54,d1
+	lea	rndtable(pc),a0
+.loop	move	d0,(a0)+
+	mulu	#$1efd,d0
+	add	#$dff,d0
+	dbf	d1,.loop
+	move.l	a0,(a0)
+	move.l	#rndtable+48,j_index
+	rts
+
+rndw	;return rnd number 0...65535 if d0.w
+	;
+	movem.l	a0/a1,-(a7)
+	lea	rndtable(pc),a1
+	move.l	j_index(pc),a0
+	move	-(a0),d0
+	cmp.l	a0,a1
+	bne.s	.skip
+	lea	rndtable+110(pc),a0
+.skip	move.l	a0,j_index
+	move.l	k_index(pc),a0
+	add	-(a0),d0
+	move	d0,(a0)
+	cmp.l	a0,a1
+	bne.s	.skip2
+	lea	rndtable+110(pc),a0
+.skip2	move.l	a0,k_index
+	movem.l	(a7)+,a0/a1
+	rts
+
+rndtable	ds.w	55
+k_index	dc.l	0
+j_index	dc.l	0
+
+rndl	bsr	rndw
+	move	d0,d1
+	bsr	rndw
+	swap	d0
+	move	d1,d0
+	rts
+
+rndn	move	d0,d1
+	bsr	rndw
+	mulu	d1,d0
+	swap	d0
+	rts
+
+calcangle2	;angle of camera to object in a5
+	;
+	move	camx(pc),d0
+	sub	ob_x(a5),d0
+	move	camz(pc),d1
+	sub	ob_z(a5),d1
+	bra.s	calcangle_
+
+calcangle	;angle of object a5 to object a0...
+	;
+	move	ob_x(a0),d0
+	sub	ob_x(a5),d0
+	move	ob_z(a0),d1
+	sub	ob_z(a5),d1
+	;
+calcangle_	;d0.w=x d1.w=y (dest-src)!
+	;
+	moveq	#0,d2
+	tst	d1
+	bpl.s	.hpos
+	moveq	#16,d2
+	neg	d1
+.hpos	tst	d0
+	bpl.s	.wpos
+	eor	#8,d2
+	neg	d0
+.wpos	cmp	d1,d0
+	bmi.s	.notsteep
+	bne.s	.neq
+	move	#$2000,d1
+	bra.s	.flow
+.neq	eor	#4,d2
+	exg	d1,d0
+.notsteep	tst	d1
+	bne.s	.noflow
+	moveq	#0,d1
+	bra.s	.flow
+.noflow	ext.l	d0
+	swap	d0
+	divu	d1,d0
+	lsr	#6,d0
+	and	#1022,d0
+	move	.arc(pc,d0),d1
+.flow	move.l	.oct(pc,d2),d0
+	eor	d0,d1
+	swap	d0
+	add	d1,d0
+	lsr	#8,d0
+	rts
+	;
+.oct	dc	0,0,$4000,-1,0,-1,$c000,0
+	dc	$8000,-1,$4000,0,$8000,0,$c000,-1
+.arc	incbin	arc.bin
+
+currplayer	dc.l	0
+
+calcscene	;a5=player object
+	;
+	move	#$20,$dff09a
+	;
+	move.l	a5,currplayer
+	move.l	ob_palette(a5),palette
+	move	ob_thermo(a5),thermo
+	move	ob_infra(a5),infra
+	move	ob_pixsize(a5),pixsize
+	;
+	clr.l	shapelist
+	move.l	a5,a0
+	bsr	calccamera
+	bsr	makewalls
+	;
+	lea	objects(pc),a5
+	;
+.loop	move.l	(a5),a5
+	tst.l	(a5)
+	beq.s	.done
+	cmp.l	currplayer(pc),a5
+	beq.s	.loop
+	move.l	ob_render(a5),a0
+	jsr	(a0)
+	bra.s	.loop
+.done	;
+	lea	gore(pc),a5
+	;
+.loop2	move.l	(a5),a5
+	tst.l	(a5)
+	beq.s	.done2
+	;
+	movem	go_x(a5),d0/d2
+	moveq	#0,d1
+	move.l	go_shape(a5),a0
+	move	#$200,d7
+	bsr	drawshape_q
+	;
+	bra.s	.loop2
+	;
+.done2	move	#$8020,$dff09a
+	;
+	rts
+
+ipals	dc.l	palettesb,palettesw,palettesr
+
+blitscene	bclr	#7,ob_update(a5)
+	beq.s	.noupdate
+	bsr	showstats
+	;
+.noupdate	move	ob_messtimer(a5),d0
+	bpl.s	.mskip
+	addq	#1,d0
+	beq.s	.mdone
+	neg	ob_messtimer(a5)
+	move.l	ob_window(a5),a0
+	bsr	putstrip
+	bsr	printmess
+	bra.s	.mskip
+	;
+.mdone	clr	ob_messtimer(a5)
+	move.l	ob_window(a5),a0
+	bsr	putstrip
+.mskip	;
+	rts
+
+drawscene	;a5=player
+	;
+.wait	tst	showflag
+	bne.s	.wait
+	;
+	move.l	ob_window(a5),a0
+	bsr	dbwindow
+	;
+	bsr	castwalls
+	bsr	makeqstrip
+	bsr	renderwalls
+	;
+	move	floorflag(pc),d0
+	ble.s	.nofloor
+	;
+	move	camy(pc),d0
+	neg	d0
+	moveq	#-1,d1
+	move	maxy(pc),d7
+	subq	#1,d7
+	lea	groundtile,a0
+	bsr	flat
+	;
+.nofloor	move	roofflag(pc),d0
+	ble.s	.noflat
+	;
+	move	#-255,d0
+	sub	camy(pc),d0
+	moveq	#1,d1
+	move	miny(pc),d7
+	lea	ceilingtile,a0
+	bsr	flat
+	;
+.noflat	bsr	drawshapes
+	bsr	drawblood
+	;
+	move.l	currplayer(pc),a0
+	move	ob_pixsizeadd(a0),d0
+	beq	.done
+	add	d0,ob_pixsize(a0)
+	move	ob_pixsize(a0),d0
+	beq	.fin
+	cmp	#24,d0
+	bne	.pix
+	;
+	;ok, big pixels
+	;
+	move	finished2(pc),finished
+	bne	.pix
+	;
+	move	#$20,$dff09a
+	move	ob_telex(a0),ob_x(a0)
+	move	ob_telez(a0),ob_z(a0)
+	move	ob_telerot(a0),ob_rot(a0)
+	neg	ob_pixsizeadd(a0)
+	move	#$8020,$dff09a
+	bra.s	.pix
+	;
+.fin	clr	ob_pixsizeadd(a0)
+	;
+.pix	move	d0,pixsize
+	bsr	pixelate
+	;
+.done	rts
+
+vbhandler	;
+	subq	#1,(a1)+
+	addq	#1,(a1)
+	;
+	tst	showflag
+	beq.s	.noshow
+	;
+	;don't show if beam in the way!
+	;
+	move.l	$dff004,d0
+	lsr.l	#8,d0	;beampos
+	and	#$1ff,d0
+	cmp	minbpos(pc),d0
+	bcs.s	.ok
+	cmp	maxbpos(pc),d0
+	bcs.s	.noshow
+	;
+.ok	clr	showflag
+	lea	window1,a0
+	bsr	showwindowq
+	lea	window2,a0
+	bsr	showwindowq
+	;
+.noshow	bsr	sfxvbint
+	;
+	move	fadevol(pc),d0
+	beq.s	.nofade
+	move.l	medat(pc),a1
+	sub	#$40,fadevol
+	bne.s	.setvol
+	jsr	12(a1)
+	bra.s	.nofade
+.setvol	move	fadevol(pc),d0
+	lsr	#8,d0
+	jsr	16(a1)
+	;
+.nofade	btst	#0,framecnt+1
+	beq	rts
+	tst	paused
+	bne	exit_vb2
+	;
+	;OK, movement/animation stuff!
+	;
+	movem.l	d0-d7/a0-a6,-(a7)
+	;
+	bsr	readjoys
+	bsr	dodoors
+	bsr	doanims
+	bsr	moveblood
+	;
+	move.l	a7,obj_stack
+	lea	objects(pc),a5
+	;
+obj_loop	move.l	(a5),a5
+	tst.l	(a5)
+	beq	exit_vb
+	;
+	move.l	ob_logic(a5),a0
+	jsr	(a0)
+	;
+	;check collision!
+	;
+	move	ob_collwith(a5),d0
+	beq.s	obj_loop
+	;
+	move	ob_rad(a5),d1
+	move	ob_x(a5),d6
+	move	ob_z(a5),d7
+	;
+	lea	objects(pc),a0
+	;
+.loop2	move.l	(a0),a0
+	cmp.l	a5,a0
+	bne.s	.this
+	;
+	clr.l	ob_washit(a5)	;not hit! can get hit next time...
+	bra	obj_loop
+.this	;
+	move	ob_colltype(a0),d2
+	and	d0,d2
+	beq.s	.loop2
+	;
+	move	ob_rad(a0),d2
+	add	d1,d2	;r sum
+	;
+	move	ob_x(a0),d3
+	sub	d6,d3
+	bpl.s	.xpl
+	neg	d3
+.xpl	cmp	d2,d3
+	bcc.s	.loop2
+	;
+	move	ob_z(a0),d4
+	sub	d7,d4
+	bpl.s	.ypl
+	neg	d4
+.ypl	cmp	d2,d4
+	bcc.s	.loop2
+	;
+	mulu	d2,d2
+	mulu	d3,d3
+	mulu	d4,d4
+	add.l	d4,d3
+	cmp.l	d2,d3
+	bcc.s	.loop2
+	;
+	cmp.l	ob_washit(a5),a0
+	beq	obj_loop
+	move.l	a0,ob_washit(a5)
+	;
+	move	finished2(pc),d0
+	bne	obj_loop
+	;
+	move.l	#killobject3,killjsr
+	movem.l	a0/a5,obj_a0
+	exg.l	a0,a5
+	;
+	move	ob_damage(a0),d0
+	move.l	ob_hit(a5),a1
+	sub	d0,ob_hitpoints(a5)
+	bgt.s	hit_skip
+	move.l	ob_die(a5),a1
+	;
+hit_skip	jsr	(a1)
+	;
+hit_ret	move.l	#killobject2,killjsr
+	movem.l	obj_a0(pc),a0/a5
+	;
+	move	ob_damage(a0),d0
+	move.l	ob_hit(a5),a1
+	sub	d0,ob_hitpoints(a5)
+	bgt.s	hit_skip2
+	move.l	ob_die(a5),a1
+	;
+hit_skip2	jsr	(a1)
+	;
+	bra	obj_loop
+	;
+exit_vb	movem.l	(a7)+,d0-d7/a0-a6
+exit_vb2	st	doneflag
+	moveq	#0,d0
+	;
+rts	rts
+
+obj_a0	dc.l	0
+obj_a5	dc.l	0
+obj_stack	dc.l	0
+killjsr	dc.l	killobject2
+
+killobject	;
+	move.l	killjsr(pc),a0
+	jmp	(a0)
+
+killobject2	move.l	a5,a0
+	killitem	objects
+	move.l	a0,a5
+	move.l	obj_stack(pc),a7
+	bra	obj_loop
+
+killobject3	move.l	a5,a0
+	killitem	objects
+	move.l	obj_stack(pc),a7
+	bra	hit_ret
+
+bloodspeed	bsr	rndw
+	ext.l	d0
+	lsl.l	#2,d0
+	rts
+
+bloodspeed2	bsr	rndw
+	ext.l	d0
+	lsl.l	#5,d0
+	rts
+
+bloodspeed3	bsr	rndw
+	ext.l	d0
+	lsl.l	#4,d0
+	rts
+
+makesparksq	move.l	ob_chunks(a5),a2
+	;
+makesparks	;a2=sparks
+	;
+	movem.l	ob_x(a5),d2-d4
+	move	2(a2),d5
+	subq	#1,d5
+	;
+.loop	addlast	objects
+	beq	.rts
+	movem.l	d2-d4,ob_x(a0)
+	bsr	bloodspeed2
+	move.l	d0,ob_xvec(a0)
+	bsr	bloodspeed2
+	move.l	d0,ob_yvec(a0)
+	bsr	bloodspeed2
+	move.l	d0,ob_zvec(a0)
+	move.l	a2,ob_shape(a0)
+	move	d5,ob_frame(a0)
+	move.l	#sparkslogic,ob_logic(a0)
+	move.l	#drawshape_1,ob_render(a0)
+	clr	ob_colltype(a0)
+	clr	ob_collwith(a0)
+	bsr	rndw
+	and	#15,d0
+	add	#15,d0
+	move	d0,ob_delay(a0)
+	dbf	d5,.loop
+.rts	rts
+
+sparkslogic	subq	#1,ob_delay(a5)
+	ble	killobject
+	movem.l	ob_x(a5),d0-d2
+	add.l	ob_xvec(a5),d0
+	add.l	ob_yvec(a5),d1
+	add.l	ob_zvec(a5),d2
+	movem.l	d0-d2,ob_x(a5)
+	rts
+
+bloodymess	;throw random blood splots everywhere!
+	;
+	bsr	bloodspeed2
+	add.l	ob_x(a5),d0
+	move.l	d0,d2
+	bsr	bloodspeed2
+	add.l	ob_gutsy(a5),d0
+	move.l	d0,d3
+	bsr	bloodspeed2
+	add.l	ob_z(a5),d0
+	move.l	d0,d4
+	;
+.loop	addlast	blood
+	beq.s	.done
+	;
+	movem.l	d2-d4,bl_x(a0)
+	bsr	bloodspeed
+	move.l	d0,bl_xvec(a0)
+	bsr	bloodspeed
+	move.l	d0,bl_yvec(a0)
+	bsr	bloodspeed
+	move.l	d0,bl_zvec(a0)
+	bsr	rndw
+	and	#$031,d0
+	move	d0,bl_color(a0)
+	;
+	dbf	d7,.loop
+	;
+.done	rts
+
+bloodymess2	;throw random blood splots everywhere!
+	;
+	bsr	bloodspeed2
+	add.l	ob_x(a5),d0
+	move.l	d0,d2
+	bsr	bloodspeed2
+	add.l	ob_gutsy(a5),d0
+	move.l	d0,d3
+	bsr	bloodspeed2
+	add.l	ob_z(a5),d0
+	move.l	d0,d4
+	;
+.loop	addlast	blood
+	beq.s	.done
+	;
+	movem.l	d2-d4,bl_x(a0)
+	bsr	bloodspeed3
+	move.l	d0,bl_xvec(a0)
+	bsr	bloodspeed3
+	move.l	d0,bl_yvec(a0)
+	bsr	bloodspeed3
+	move.l	d0,bl_zvec(a0)
+	bsr	rndw
+	and	#$031,d0
+	move	d0,bl_color(a0)
+	;
+	dbf	d7,.loop
+	;
+.done	rts
+
+chunklogic	move	mode(pc),d0
+	beq	chunklogic2
+	;
+	add.l	#$8000,ob_yvec(a5)
+	move.l	ob_yvec(a5),d0
+	add.l	ob_y(a5),d0
+	blt	.skip
+	;
+	;OK...hit ground!
+	;
+	bsr	splat
+	addlast	gore
+	bne.s	.gok
+	;
+	move.l	gore(pc),a0
+	killitem	gore
+	addlast	gore
+	beq	killobject
+	;
+.gok	move	ob_x(a5),go_x(a0)
+	move	ob_z(a5),go_z(a0)
+	move.l	ob_shape(a5),a1
+	move	ob_frame(a5),d0
+	add.l	12(a1,d0*4),a1
+	move.l	a1,go_shape(a0)
+	;
+	bra	killobject
+	;
+.skip	move.l	d0,ob_y(a5)
+	movem.l	ob_xvec(a5),d6-d7
+	add.l	ob_x(a5),d6
+	add.l	ob_z(a5),d7
+	bsr	checknew
+	beq.s	.newok
+	clr.l	ob_xvec(a5)
+	clr.l	ob_zvec(a5)
+	rts
+	;
+.newok	move.l	d6,ob_x(a5)
+	move.l	d7,ob_z(a5)
+	rts
+
+chunklogic2	add.l	#$8000,ob_yvec(a5)
+	move.l	ob_yvec(a5),d0
+	add.l	d0,ob_y(a5)
+	blt.s	.ok
+	;bsr	splat
+	bra	killobject
+.ok	movem.l	ob_xvec(a5),d0-d1
+	add.l	d0,ob_x(a5)
+	add.l	d1,ob_z(a5)
+	rts
+
+splat	move.l	splatsfx(pc),a0
+	moveq	#32,d0
+	moveq	#-1,d1
+	bra	playsfx
+
+blowobject	move.l	diesfx(pc),a0
+	moveq	#64,d0
+	moveq	#2,d1
+	bsr	playsfx
+	;
+	moveq	#31,d7
+	bsr	bloodymess2
+	;
+	move.l	ob_chunks(a5),a4
+	move	2(a4),d7
+	subq	#1,d7
+	;
+.loop	addlast	objects
+	beq	killobject
+	movem.l	ob_x(a5),d0-d2
+	move.l	#-64<<16,d1
+	movem.l	d0-d2,ob_x(a0)
+	;
+	bsr	bloodspeed3
+	move.l	d0,ob_xvec(a0)
+	bsr	bloodspeed3
+	sub.l	#$40000,d0
+	move.l	d0,ob_yvec(a0)
+	bsr	bloodspeed3
+	move.l	d0,ob_zvec(a0)
+	;
+	clr	ob_colltype(a0)
+	clr	ob_collwith(a0)
+	move.l	#chunklogic,ob_logic(a0)
+	move.l	a4,ob_shape(a0)
+	move.l	#drawshape_1,ob_render(a0)
+	move	d7,ob_frame(a0)
+	;
+	move	an_maxw(a4),d0
+	move	d0,ob_rad(a0)
+	mulu	d0,d0
+	move.l	d0,ob_radsq(a0)
+	;
+	dbf	d7,.loop
+	bra	killobject
+
+hurtngrunt	move.l	a0,-(a7)
+	bsr	rndw
+	and	#3,d0
+	cmp	lastgrunt(pc),d0
+	bne.s	.new
+	addq	#1,d0
+	and	#3,d0
+.new	move	d0,lastgrunt
+	lea	grunttable(pc),a0
+	move.l	0(a0,d0*4),a0
+	move.l	(a0),a0
+	moveq	#64,d0
+	moveq	#1,d1
+	bsr	playsfx
+	move.l	(a7)+,a0
+	;
+hurtobject	move	ob_colltype(a0),d0
+	and	#24,d0
+	bne.s	.rts
+	;
+	moveq	#23,d7
+	bsr	bloodymess
+	move	ob_hurtpause(a5),ob_hurtwait(a5)
+	beq	.rts
+	move	#4,ob_frame(a5)
+	move.l	ob_logic(a5),ob_oldlogic2(a5)
+	move.l	ob_hit(a5),ob_oldhit(a5)
+	move.l	#pauselogic2,ob_logic(a5)
+	move.l	#rts,ob_hit(a5)
+.rts	rts
+
+pauselogic2	subq	#1,ob_hurtwait(a5)
+	bgt.s	.rts
+	clr	ob_frame(a5)
+	move.l	ob_oldlogic2(a5),ob_logic(a5)
+	move.l	ob_oldhit(a5),ob_hit(a5)
+.rts	rts
+
+pauselogic	subq	#1,ob_delay(a5)
+	bgt.s	.skip
+	;
+	bsr	rnddelay
+	move.l	ob_oldlogic(a5),ob_logic(a5)
+	;
+	;if in front of player, continue on old course...
+	;
+	bsr	pickplayer
+	tst	ob_invisible(a0)
+	bne.s	.useold	;can't see player! no intelligence...
+	;
+	bsr	calcangle
+	move	ob_rot(a0),d1
+	and	#255,d1
+	sub	d0,d1
+	bpl.s	.pl
+	neg	d1
+.pl	cmp	#64,d1
+	bcs.s	.skip
+	cmp	#192,d1
+	bcc.s	.skip
+	;
+.useold	move	ob_oldrot(a5),ob_rot(a5)
+	bsr	calcvecs
+	;
+.skip	rts
+
+shoot	;
+	;fire off a bullet...
+	;
+	;d2 : colltype
+	;d3 : collwith
+	;d4 : hitpoints
+	;d5 : damage
+	;d6 : speed
+	;a2=bullet shape
+	;a3=sparks shape
+	;
+	addfirst	objects
+	beq	.rts
+	;
+	move	ob_bouncecnt(a5),ob_bouncecnt(a0)
+	move	ob_x(a5),ob_x(a0)
+	move	ob_y(a5),d0
+	add	ob_firey(a5),d0
+	move	d0,ob_y(a0)
+	move	ob_z(a5),ob_z(a0)
+	move.l	#firelogic,ob_logic(a0)
+	move.l	#drawshape_1,ob_render(a0)
+	move.l	#rts,ob_hit(a0)
+	move.l	#killobject,ob_die(a0)
+	move	d2,ob_colltype(a0)
+	move	d3,ob_collwith(a0)
+	move	d4,ob_hitpoints(a0)
+	move	d5,ob_damage(a0)
+	move	d6,ob_movspeed(a0)
+	move.l	a2,ob_shape(a0)
+	clr	ob_frame(a0)
+	move.l	a3,ob_chunks(a0)
+	;
+	move	ob_rot(a5),d0
+	and	#255,d0
+	move.l	camrots(pc),a1
+	;
+	ifne	aga
+	lea	0(a1,d0*8),a1
+	elseif
+	lsl	#3,d0
+	lea	0(a1,d0),a1
+	endc
+	;
+	move	2(a1),d0
+	move	d0,ob_nxvec(a0)
+	neg	d0
+	muls	d6,d0
+	add.l	d0,d0
+	move	6(a1),d1
+	move	d1,ob_nzvec(a0)
+	muls	d6,d1
+	add.l	d1,d1
+	;
+	movem.l	d0-d1,ob_xvec(a0)
+	add.l	d0,ob_x(a0)
+	add.l	d1,ob_z(a0)
+	;
+	move	#32,ob_rad(a0)
+	move.l	#32*32,ob_radsq(a0)
+	;
+.rts	rts
+
+fire1	bsr	pickplayer
+	bsr	calcangle
+	move	d0,-(a7)
+	bsr	rndw
+	tst	ob_invisible(a0)
+	bne.s	.inv
+	and	#16,d0
+	subq	#8,d0
+.inv	add	(a7)+,d0
+	and	#255,d0
+	move	d0,ob_rot(a5)
+	bsr	calcvecs
+	move	#7,ob_delay(a5)
+	move.l	ob_logic(a5),ob_oldlogic(a5)
+	move.l	#pauselogic,ob_logic(a5)
+	clr.l	ob_frame(a5)
+	;
+	moveq	#4,d2	;colltype
+	moveq	#0,d3	;collwith
+	moveq	#1,d4	;hitpoints
+	moveq	#1,d5	;damage
+	moveq	#20,d6	;speed
+	moveq	#0,d7	;acceleration!
+	lea	bullet1,a2
+	lea	sparks1,a3
+	;
+	bsr	shoot
+	;
+	rts
+
+checkvecs	move.l	ob_x(a5),d6
+	add.l	ob_xvec(a5),d6
+	move.l	ob_z(a5),d7
+	add.l	ob_zvec(a5),d7
+	bra	checknew	;ok to stand here?
+
+pickplayer	;pick a player at random
+	move.l	player1(pc),a0
+	tst	gametype
+	beq.s	.rts
+	;
+	move	ob_x(a5),d0
+	sub	ob_x(a0),d0
+	muls	d0,d0
+	move	ob_z(a5),d1
+	sub	ob_z(a0),d1
+	muls	d1,d1
+	add.l	d1,d0	;dist to player 1
+	;
+	move.l	player2(pc),a1
+	move	ob_x(a5),d1
+	sub	ob_x(a1),d1
+	muls	d1,d1
+	move	ob_z(a5),d2
+	sub	ob_z(a1),d2
+	muls	d2,d2
+	add.l	d2,d1	;dist to player 2
+	;
+	cmp.l	d1,d0
+	bcs.s	.rts
+	;
+	move.l	a1,a0
+	;
+.rts	rts
+
+checkcoll	;check for collision between a5, and a0
+	;
+	move	ob_rad(a5),d1
+	move	ob_rad(a0),d2
+	add	d1,d2	;r sum
+	;
+	move	ob_x(a0),d3
+	sub	ob_x(a5),d3
+	bpl.s	.xpl
+	neg	d3
+.xpl	cmp	d2,d3
+	bcc.s	.no
+	;
+	move	ob_z(a0),d4
+	sub	ob_z(a5),d4
+	bpl.s	.ypl
+	neg	d4
+.ypl	cmp	d2,d4
+	bcc.s	.no
+	;
+	mulu	d2,d2
+	mulu	d3,d3
+	mulu	d4,d4
+	add.l	d4,d3
+	cmp.l	d2,d3
+	bcc.s	.no
+	;
+	moveq	#-1,d0
+	rts
+	;
+.no	moveq	#0,d0
+	rts
+
+baldycharge	;
+	;baldy charging at player!
+	;
+	bsr	checkvecs
+	beq	baldy_skip
+	;
+baldy_tonorm	move.l	ob_movspeed(a5),d0
+	lsr.l	#2,d0
+	move.l	d0,ob_movspeed(a5)
+	;
+	move.l	ob_framespeed(a5),d0
+	lsr.l	#2,d0
+	move.l	d0,ob_framespeed(a5)
+	;
+	move.l	#baldylogic,ob_logic(a5)
+	bsr	rnddelay
+	;
+	bra	monsterfix
+	;
+baldy_skip	;close to player? start throwing punches around!
+	;
+	bsr	pickplayer
+	bsr	calcangle
+	sub	ob_rot(a5),d0
+	cmp	#32,d0
+	bgt	baldy_tonorm
+	cmp	#-32,d0
+	blt	baldy_tonorm
+	;
+	move.l	a0,ob_washit(a5)
+	bsr	checkcoll
+	beq	monsternew	;no collisions!
+	;
+	;go into punch mode!
+	;
+	move.l	#baldypunch,ob_logic(a5)
+	move	ob_punchrate(a5),ob_delay(a5)
+	clr.l	ob_frame(a5)
+	rts
+
+baldypunch	;
+	bsr	pickplayer
+	bsr	checkcoll
+	bne.s	.doit
+	;
+	clr.l	ob_frame(a5)
+	bra	baldy_tonorm
+	;
+.doit	subq	#1,ob_delay(a5)
+	ble.s	.punch
+	rts
+.punch	move	ob_punchrate(a5),ob_delay(a5)
+	moveq	#0,d0	;stand frame
+	cmp	ob_frame(a5),d0
+	bne	.skip
+	;
+	clr.l	ob_washit(a5)	;punch!
+	bsr	calcangle
+	move	d0,ob_rot(a5)
+	moveq	#5,d0
+.skip	move	d0,ob_frame(a5)
+	rts
+
+calcbangle	bsr	calcangle
+	tst	ob_invisible(a0)
+	beq.s	.notinv
+	;
+	;invisible, add some randomeness!
+	;
+	move	d0,-(a7)
+	bsr	rndw
+	and	#127,d0
+	sub	#64,d0
+	add	(a7)+,d0
+	and	#255,d0
+	;
+.notinv	move	d0,ob_rot(a5)
+	rts
+
+baldylogic	;
+	;OK, what can baldy do...
+	;
+	;how about, walk around similar to the marine, but randomly 
+	;charge at you?
+	;
+	;then, if he's close enough, he throws a punch!
+	;
+	subq	#1,ob_delay(a5)
+	bgt	monstermove	;charge?
+	;
+	bsr	pickplayer
+	bsr	calcbangle
+	;
+	move.l	ob_movspeed(a5),d0
+	lsl.l	#2,d0
+	move.l	d0,ob_movspeed(a5)
+	move.l	ob_framespeed(a5),d0
+	lsl.l	#2,d0
+	move.l	d0,ob_framespeed(a5)
+	;
+	bsr	calcvecs
+	move.l	#baldycharge,ob_logic(a5)
+	;
+	rts
+
+terralogic	;
+	move	ob_rot(a5),ob_oldrot(a5)
+	subq	#1,ob_delay(a5)
+	bgt	monstermove
+	;
+	;OK, terra goes apeshit! stand there firing off at player!
+	;use punchrate as firedelay!
+	;
+	clr	ob_frame(a5)
+	move	#1,ob_delay(a5)
+	move	ob_firecnt(a5),ob_delay2(a5)
+	move.l	#terralogic2,ob_logic(a5)
+	rts
+
+terralogic2	;
+	subq	#1,ob_delay(a5)
+	bgt.s	.rts
+	;
+	move	ob_firerate(a5),ob_delay(a5)
+	;
+	;OK, to to face player and fire away!
+	;
+	bsr	pickplayer
+	bsr	calcangle
+	move	d0,ob_rot(a5)
+	bsr	calcvecs
+	;
+	moveq	#4,d2	;colltype
+	moveq	#0,d3	;collwith
+	moveq	#1,d4	;hitpoints
+	moveq	#3,d5	;damage
+	moveq	#16,d6	;speed
+	moveq	#0,d7	;acceleration!
+	lea	bullet3,a2
+	lea	sparks3,a3
+	;
+	bsr	shoot
+	;
+	subq	#1,ob_delay2(a5)
+	bgt.s	.rts
+	;
+	bsr	rnddelay
+	move.l	#terralogic,ob_logic(a5)
+	;
+.rts	rts
+
+monsterlogic	;
+	move	ob_rot(a5),ob_oldrot(a5)
+	;monster cruising around minding his own business...
+	;
+	subq	#1,ob_delay(a5)
+	ble	fire1
+	;
+monstermove	bsr	checkvecs
+	beq.s	monsternew
+	;
+	;OK, try 90/-90 degrees...
+	;
+monsterfix	bsr	rndw
+	moveq	#64,d1
+	tst	d0
+	bpl.s	.umk
+	moveq	#-64,d1
+.umk	add	d1,ob_rot(a5)
+	bsr	calcvecs
+	bsr	checkvecs
+	beq.s	monsternew
+	;
+	add	#128,ob_rot(a5)
+	bsr	calcvecs
+	bsr	checkvecs
+	beq.s	monsternew
+	;
+	move	ob_oldrot(a5),d0
+	add	#128,d0
+	move	d0,ob_rot(a5)
+	;
+	bsr	calcvecs
+	bsr	checkvecs
+	;
+monsternew	move.l	d6,ob_x(a5)
+	move.l	d7,ob_z(a5)
+	move.l	ob_framespeed(a5),d0
+	add.l	d0,ob_frame(a5)
+	and	#3,ob_frame(a5)
+	rts
+
+calcvecs	move	ob_rot(a5),d0
+	and	#255,d0
+	move.l	camrots(pc),a0
+	;
+	ifne	aga
+	lea	0(a0,d0*8),a0
+	elseif
+	lsl	#3,d0
+	lea	0(a0,d0),a0
+	endc
+	;
+	move	ob_movspeed(a5),d4
+	move	d4,d5
+	muls	2(a0),d4
+	add.l	d4,d4
+	neg.l	d4
+	move.l	d4,ob_xvec(a5)
+	muls	6(a0),d5
+	add.l	d5,d5
+	move.l	d5,ob_zvec(a5)
+	rts
+
+playerdead	subq	#1,ob_delay(a5)
+	bgt.s	.rts
+	;
+	cmp	#2,gametype
+	bne.s	.notcom
+	;
+	;combat game!
+	;
+	move	#3,finished2
+	move	#2,ob_pixsizeadd(a5)
+	move.l	#rts,ob_logic(a5)
+	move.l	player1,a0
+	cmp.l	a5,a0
+	bne.s	.got
+	move.l	player2,a0
+.got	move	#2,ob_pixsizeadd(a0)
+.rts	rts
+.notcom	;
+	move.l	#waitrestart,ob_logic(a5)
+	;
+waitrestart	bsr	checkfireb
+	beq.s	.rts
+	;
+	lea	p1x(pc),a0
+	lea	player1_+4,a1
+	cmp.l	player1,a5
+	beq.s	.got
+	lea	p2x(pc),a0
+	lea	player2_+4,a1
+.got	lea	ob_info(a5),a2
+	move	#(objinfof-objinfo-4)>>1-1,d0
+.loop	move	(a1)+,(a2)+
+	dbf	d0,.loop
+	move	(a0)+,ob_x(a5)
+	move	(a0)+,ob_z(a5)
+	move	(a0)+,ob_rot(a5)
+	;
+	move.l	ob_shape(a5),a0
+	move.l	4(a0),ob_chunks(a5)
+	move.l	(a0),a0
+	move.l	a0,ob_shape(a5)
+	;
+	bsr	resetplayer
+	;
+.rts	rts
+
+playerdeath	addq	#4,ob_rot(a5)
+	addq	#4,ob_eyey(a5)
+	cmp	#-32,ob_eyey(a5)
+	blt.s	.rts
+	move	#-32,ob_eyey(a5)
+	move.l	#playerdead,ob_logic(a5)
+	move	#63,ob_delay(a5)
+	;
+	cmp	#2,gametype
+	bne.s	.notcom
+	;
+	move.l	player1,a0
+	cmp.l	a5,a0
+	bne.s	.got
+	move.l	player2,a0
+.got	tst	ob_hitpoints(a0)
+	ble.s	.draw
+	;
+.win	move.l	a5,-(a7)
+	move.l	a0,a5
+	addq	#1,wins1
+	cmp.l	player1,a5
+	beq.s	.wd
+	subq	#1,wins1
+	addq	#1,wins2
+.wd	st	ob_update(a5)
+	clr	ob_collwith(a5)
+	clr	ob_colltype(a5)
+	bsr	message
+	dc.b	'winner!',0
+	even
+	move.l	(a7)+,a5
+	st	ob_update(a5)
+	bsr	message
+	dc.b	'loser!',0
+	even
+	;
+.draw
+.notcom	;
+.rts	rts
+
+redpal	move.l	#palettesr,ob_palette(a5)
+	move	#2,ob_paltimer(a5)
+	rts
+
+playerhit	tst	ob_damage(a0)
+	beq.s	.rts
+	st	ob_update(a5)
+	bsr	redpal
+.rts	rts
+
+playerdie	bsr	redpal
+	clr	ob_hitpoints(a5)
+	st	ob_update(a5)
+	move.l	#playerdeath,ob_logic(a5)
+	clr	ob_colltype(a5)
+	clr	ob_collwith(a5)
+	rts
+
+healthgot	bsr	playtsfx
+	addq	#5,ob_hitpoints(a0)
+	cmp	#25,ob_hitpoints(a0)
+	ble.s	.skip
+	move	#25,ob_hitpoints(a0)
+.skip	st	ob_update(a0)
+	move.l	a5,-(a7)
+	move.l	a0,a5
+	bsr	message
+	dc.b	'health bonus!',0
+	even
+	move.l	(a7)+,a5
+	bra	killobject
+
+playtsfx	move.l	a0,-(a7)
+	move.l	tokensfx(pc),a0
+	moveq	#64,d0
+	moveq	#0,d1
+	bsr	playsfx
+	move.l	(a7)+,a0
+	rts
+
+weapongot	bsr	playtsfx
+	add	#$100,ob_weapon(a0)
+	cmp	#$1900,ob_weapon(a0)
+	ble.s	.skip
+	move	#$1900,ob_weapon(a0)
+.skip	st	ob_update(a0)
+	move.l	a5,-(a7)
+	move.l	a0,a5
+	move	ob_wlevel(a5),d2
+	bsr	calcwlevel
+	cmp	ob_wlevel(a5),d2
+	beq.s	.nob
+	bsr	message
+	dc.b	'weapon boost!',0
+	even
+	bra.s	.nob2
+.nob	bsr	message
+	dc.b	'weapon bonus...',0
+	even
+.nob2	move.l	(a7)+,a5
+	bra	killobject
+
+invisigot	add	#1500,ob_invisible(a0)
+	move.l	#rts,ob_render(a0)
+	move.l	a5,-(a7)
+	move.l	a0,a5
+	bsr	calcwlevel
+	bsr	message
+	dc.b	'invisibility!',0
+	even
+	move.l	(a7)+,a5
+	bra	killobject
+
+thermogot	add	#1500,ob_thermo(a0)
+	move.l	a5,-(a7)
+	move.l	a0,a5
+	bsr	message
+	dc.b	'got the thermo glasses!',0
+	even
+	move.l	(a7)+,a5
+	bra	killobject
+
+playertimers	tst	ob_thermo(a5)
+	beq.s	.noth
+	subq	#1,ob_thermo(a5)
+	bne.s	.noth
+	bsr	message
+	dc.b	'thermo glasses out...',0
+	even
+	;
+.noth	tst	ob_messtimer(a5)
+	ble.s	.notm
+	subq	#2,ob_messtimer(a5)
+.notm	;
+	tst	ob_invisible(a5)
+	beq.s	.noti
+	subq	#1,ob_invisible(a5)
+	bne.s	.noti
+	move.l	#drawshape_8,ob_render(a5)
+	bsr	message
+	dc.b	'invisibility out...',0
+	even
+.noti	;
+	tst	ob_paltimer(a5)
+	beq.s	.notp
+	subq	#1,ob_paltimer(a5)
+	bne.s	.notp
+	move.l	#palettes,ob_palette(a5)
+.notp	;
+	rts
+
+footstep	move.l	d0,-(a7)
+	move.l	footstepsfx(pc),a0
+	moveq	#16,d0
+	moveq	#0,d1
+	bsr	playsfx
+	move.l	(a7)+,d0
+	rts
+
+cntrls	dc.l	joyx0,joyx1,joyx2
+
+playerlogic	bsr	playertimers
+	;
+	lea	cntrls(pc),a0
+	move	ob_cntrl(a5),d0
+	move.l	0(a0,d0*4),a0
+	;
+	move	(a0),d0	;joyx - rotate
+	muls	ob_rotspeed(a5),d0
+	add	ob_rot(a5),d0
+	and	#255,d0
+	move	d0,ob_rot(a5)
+	;
+	;move...
+	;
+	move	2(a0),d4	;joyy
+	bne.s	.speed
+	;
+	and	#255,ob_bounce(a5)
+	beq.s	.nob
+	add	#32,ob_bounce(a5)
+	cmp	#128,ob_bounce(a5)
+	ble.s	.nob
+	clr	ob_bounce(a5)
+	bsr	footstep
+	;
+.nob	clr.l	ob_frame(a5)
+	bra	checkfire
+	;
+.speed	add	#16,ob_bounce(a5)
+	move	ob_bounce(a5),d1
+	sub	#64,d1
+	and	#255,d1
+	bne.s	.fskip
+	bsr	footstep
+.fskip	;
+	move.l	ob_framespeed(a5),d1
+	add.l	d1,ob_frame(a5)
+	and	#3,ob_frame(a5)
+	;
+	neg	d4
+	muls	ob_movspeed(a5),d4	;speed
+	move.l	camrots(pc),a1
+	;
+	ifne	aga
+	lea	0(a1,d0*8),a1
+	elseif
+	lsl	#3,d0
+	lea	0(a1,d0),a1
+	endc
+	;
+	move	d4,d5		;real speed
+	muls	2(a1),d4
+	add.l	d4,d4
+	muls	6(a1),d5
+	add.l	d5,d5
+	move.l	ob_x(a5),d6
+	move.l	ob_z(a5),d7
+	;
+	bsr	mover
+	;
+	move.l	d6,ob_x(a5)
+	move.l	d7,ob_z(a5)
+	;
+	tst	ob_pixsizeadd(a5)
+	bne	checkfire
+	;
+	bsr	checknew2	;in a trigger zone?
+	beq.s	checkfire
+	;
+	move	zo_ev(a4),d0	;poly->event
+	bmi.s	checkfire
+	;
+	cmp	#24,d0
+	bne.s	.notexit
+	;
+	move	#3,finished2	;pattern done!
+	move	#2,ob_pixsizeadd(a5)
+	;
+.notexit	cmp	#19,d0
+	bcc.s	.noclr
+	;
+	;OK, gotta clear all 'event' zones with same type!
+	;
+	move.l	map_poly(pc),a0
+	move.l	map_ppnt(pc),a1
+	moveq	#32,d1
+.loop2	cmp	zo_ev(a0),d0
+	bne.s	.skip2
+	neg	zo_ev(a0)
+.skip2	add.l	d1,a0
+	cmp.l	a1,a0
+	bcs.s	.loop2
+	;
+.noclr	move.l	a5,eventobj
+	bsr	execevent
+	move.l	eventobj(pc),a5
+checkfire	;
+	bsr	checkfireb
+	beq	.rts
+	;
+	move	ob_collwith(a5),d2
+	and	#3,d2
+	eor	#3,d2	;colltype
+	;
+	lea	wtable(pc),a0
+	move	ob_wlevel(a5),d0
+	movem	0(a0,d0),d3-d6
+	movem.l	8(a0,d0),a2-a3
+	;
+	move.b	ob_weapon(a5),d0
+	sub	d3,ob_weapon(a5)
+	cmp.b	ob_weapon(a5),d0
+	beq.s	.noup
+	;
+	bsr	calcwlevel
+	st	ob_update(a5)
+	;
+.noup	moveq	#0,d3
+	bsr	shoot
+	;
+	move.l	shootsfx,a0
+	moveq	#32,d0
+	moveq	#0,d1
+	bsr	playsfx
+	;
+.rts	rts
+
+checkfireb	lea	cntrls(pc),a0
+	move	ob_cntrl(a5),d0
+	move.l	0(a0,d0*4),a0
+	tst	8(a0)
+	rts
+
+eventobj	dc.l	0
+
+	;
+	;weaponuse.w
+	;hitpoints
+	;damage
+	;speed
+	;
+wtable	dc	0,1,1,32
+	dc.l	bullet1,sparks1
+	dc	$8,5,2,36
+	dc.l	bullet2,sparks2
+	dc	$10,10,3,40
+	dc.l	bullet3,sparks3
+	dc	$20,15,4,40
+	dc.l	bullet4,sparks4
+	dc	$40,20,7,24
+	dc.l	bullet5,sparks5
+
+calcbounce	;calculate bounce vector...poly in a4, obj in a5
+	;
+	;R=2 N (N dot V) - V
+	;
+	;where R=reflect vector, N=normal to poly, V=original vector
+	;
+	subq	#1,ob_bouncecnt(a5)
+	bge.s	.nok
+	bsr	makesparksq
+	bra	killobject
+.nok	;
+	movem	ob_nxvec(a5),d0-d1	;normalized dir
+	movem	zo_na(a4),d2-d3		;normal to poly
+	neg	d2 
+	;
+	;calc dot product:
+	;
+	move	d0,d4
+	muls	d2,d4
+	move	d1,d5
+	muls	d3,d5
+	add.l	d5,d4
+	add.l	d4,d4
+	swap	d4	;dot product?
+	;
+	muls	d4,d2
+	lsl.l	#2,d2
+	swap	d0
+	clr	d0
+	sub.l	d0,d2
+	swap	d2
+	;
+	muls	d4,d3
+	lsl.l	#2,d3
+	swap	d1
+	clr	d1
+	sub.l	d1,d3
+	swap	d3
+	;
+	movem	d2-d3,ob_nxvec(a5)
+	;
+	neg	d2
+	muls	ob_movspeed(a5),d2
+	add.l	d2,d2
+	muls	ob_movspeed(a5),d3
+	add.l	d3,d3
+	;
+	movem.l	d2-d3,ob_xvec(a5)
+	;
+	move.l	d2,d6
+	add.l	ob_x(a5),d6
+	move.l	d3,d7
+	add.l	ob_z(a5),d7
+	;
+	bsr	checknew
+	beq	putfire
+	;
+	bra	calcbounce
+
+firelogic	;
+	move.l	ob_xvec(a5),d6
+	add.l	ob_x(a5),d6
+	move.l	ob_zvec(a5),d7
+	add.l	ob_z(a5),d7
+	;
+	bsr	checknew
+	bne	calcbounce
+.nokill	;
+putfire	move.l	d6,ob_x(a5)
+	move.l	d7,ob_z(a5)
+	;
+	addq	#1,ob_frame(a5)
+	move	ob_frame(a5),d0
+	move.l	ob_shape(a5),a0
+	cmp	2(a0),d0
+	bcs.s	.skip
+	clr	ob_frame(a5)
+.skip	;
+	rts
+
+moveblood	lea	blood(pc),a5
+	;
+.loop	move.l	(a5),a5
+	tst.l	(a5)
+	beq	.done
+	;
+	add.l	#$8000,bl_yvec(a5)
+	;
+	movem.l	bl_xvec(a5),d0-d2
+	add.l	d1,bl_y(a5)
+	blt.s	.ok
+	;
+	move.l	a5,a0
+	killitem	blood
+	move.l	a0,a5
+	bra.s	.loop
+	;
+.ok	add.l	d0,bl_x(a5)
+	add.l	d2,bl_z(a5)
+	bra.s	.loop
+	;
+.done	rts
+
+drawblood	lea	blood(pc),a5
+	;
+.loop	move.l	(a5),a5
+	tst.l	(a5)
+	beq	.done
+	;
+	move	bl_x(a5),d0
+	sub	camx(pc),d0
+	move	bl_y(a5),d1
+	sub	camy(pc),d1
+	move	bl_z(a5),d2
+	sub	camz(pc),d2
+	;
+	;rotate x/z around cam...
+	;
+	move	d0,d3
+	move	d2,d5
+	muls	cm1(pc),d0
+	muls	cm2(pc),d5
+	add.l	d5,d0
+	add.l	d0,d0
+	swap	d0	;X
+	;
+	muls	cm3(pc),d3
+	muls	cm4(pc),d2
+	add.l	d3,d2
+	add.l	d2,d2
+	swap	d2	;Z
+	;
+	tst	d2
+	beq	.loop
+	cmp	#maxz,d2
+	bcc	.loop
+	;
+	ext.l	d0
+	lsl.l	#focshft,d0
+	divs	d2,d0
+	cmp	minx(pc),d0
+	blt	.loop
+	cmp	maxx(pc),d0
+	bge	.loop
+	;
+	ext.l	d1
+	lsl.l	#focshft,d1
+	divs	d2,d1
+	cmp	miny(pc),d1
+	blt	.loop
+	cmp	maxy(pc),d1
+	bge	.loop
+	;
+	cmp	#32,d2
+	bcc.s	.pix
+	;
+	;blit to screen!
+	;
+	move.l	window(pc),a0
+	;
+	move	wi_bh(a0),d0
+	subq	#8,d0
+	bsr	rndn
+	move	d0,d2	;Y
+	;
+	move	wi_bw(a0),d0
+	subq	#8,d0
+	bsr	rndn	;X
+	add	wi_x(a0),d0
+	move	d2,d1
+	;
+	move.l	wi_bmap(a0),a1
+	move.l	font(pc),a0
+	moveq	#46,d2
+	bsr	blit
+	;
+	move	#$4000,$dff09a
+	move.l	a5,a0
+	killitem	blood
+	move.l	a0,a5
+	move	#$c000,$dff09a
+	bra	.loop
+.pix	;
+	add	midx(pc),d0
+	add	midy(pc),d1
+	;
+	move.l	darktable(pc),a0
+	move	0(a0,d2*2),d3
+	eor	#15,d3
+	lsl	#8,d3	;shade of red!
+	;
+	move.l	cop(pc),a1
+	;
+	lea	coloffs,a2
+	add.l	0(a2,d0*4),a1
+	mulu	copmod(pc),d1
+	;
+	or	bl_color(a5),d3
+	move	d3,0(a1,d1.l)
+	bra	.loop
+	;
+.done	rts
+
+drawshape_1	;
+	move.l	ob_shape(a5),a0
+	move	ob_frame(a5),d0
+	add.l	12(a0,d0*4),a0
+	move	#$200,d7	;scale
+	bra	drawshape
+
+drawshape_8	;
+	;shape has 8 rotations, and a scale!
+	;
+	bsr	calcangle2
+	add	#16,d0
+	sub	ob_rot(a5),d0
+	lsr	#5,d0
+	and	#7,d0
+	move	ob_frame(a5),d1
+	lsl	#3,d1
+	or	d1,d0
+	move.l	ob_shape(a5),a0
+	move	ob_scale(a5),d7
+	;
+	ifne	aga
+	add.l	12(a0,d0*4),a0
+	elseif
+	lsl	#2,d0
+	add.l	12(a0,d0),a0
+	endc
+	;
+drawshape	move	ob_x(a5),d0
+	move	ob_y(a5),d1
+	move	ob_z(a5),d2
+drawshape_q	;
+	;A0=shape
+	;D0=X
+	;D1=Y
+	;D2=Z
+	;D7=sclae factor
+	;
+	;rotate Z around camera!
+	;
+	sub	camx(pc),d0
+	sub	camy(pc),d1
+	sub	camz(pc),d2
+	;
+	move	d0,d3
+	move	d2,d5
+	muls	cm3(pc),d3
+	muls	cm4(pc),d2
+	add.l	d3,d2
+	add.l	d2,d2
+	swap	d2
+	;
+	tst	d2
+	ble	.rts
+	cmp	#maxz,d2
+	bcc	.rts
+	;
+	muls	cm1(pc),d0
+	muls	cm2(pc),d5
+	add.l	d5,d0
+	add.l	d0,d0
+	swap	d0
+	;
+	move.l	memat(pc),a1
+	add.l	#sh_size,memat
+	movem	d0-d2,sh_x(a1)
+	move.l	a0,sh_shape(a1)
+	move	d7,sh_scale(a1)
+	;
+	lea	shapelist(pc),a2
+.loop	move.l	(a2),d0
+	beq.s	.end
+	move.l	a2,a3
+	move.l	d0,a2
+	cmp	sh_z(a2),d2	;nearer...further in list
+	ble.s	.loop
+	move.l	a2,(a1)
+	move.l	a1,(a3)
+	rts
+.end	move.l	d0,(a1)
+	move.l	a1,(a2)
+.rts	rts
+
+mover	;
+	;d4=x speed
+	;d5=z speed
+	;d6=x
+	;d7=z
+	;
+	;return d0, ne if a wall was hit!
+	;check only walls zone (player)
+	;
+	neg.l	d4
+	moveq	#0,d3
+	add.l	d4,d6
+	bsr	checknew
+	beq.s	.xok
+	moveq	#-1,d3
+	sub.l	d4,d6
+.xok	;
+	add.l	d5,d7
+	bsr	checknew
+	beq.s	.zok
+	moveq	#-1,d3
+	sub.l	d5,d7
+.zok	tst	d3
+	rts
+
+mover2	;
+	;d4=x speed
+	;d5=z speed
+	;d6=x
+	;d7=z
+	;
+	;return d0, ne if a wall was hit!
+	;check walls AND monster zones
+	;
+	neg.l	d4
+	moveq	#0,d3
+	add.l	d4,d6
+	bsr	checknew
+	bne.s	.xbad
+	bsr	checknew2
+	beq.s	.xok
+.xbad	moveq	#-1,d3
+	sub.l	d4,d6
+.xok	;
+	add.l	d5,d7
+	bsr	checknew
+	bne.s	.zbad
+	bsr	checknew2
+	beq.s	.zok
+.zbad	moveq	#-1,d3
+	sub.l	d5,d7
+.zok	tst	d3
+	rts
+
+checknew2	;check trigger zone
+	move.l	map_grid(pc),a0
+	addq	#4,a0
+	bra.s	checknew_
+
+gs	equ	1<<grdshft
+
+checkoffs	dc	0,0,-gs,0,gs,0,0,-gs,0,gs
+	dc	-gs,-gs,gs,-gs,-gs,gs,gs,gs
+
+checknew	;check wall zone
+	;
+	;d6.q=x, d7.q=z
+	;
+	;check for ob_radsq(a5)
+	;
+	move.l	map_grid(pc),a0
+	;
+checknew_	movem.l	d3-d7,-(a7)
+	swap	d6
+	swap	d7
+	;
+	lea	checkoffs(pc),a1	;where to check from
+	move.l	map_poly(pc),a2
+	addq	#1,frame
+	move	frame(pc),d3
+	moveq	#8,d5		;nine squares
+	;
+.loop	movem	(a1)+,d0-d1
+	add	d6,d0
+	cmp	#32<<grdshft,d0
+	bcc	.next
+	add	d7,d1
+	cmp	#32<<grdshft,d1
+	bcc	.next
+	;
+	;d0,d1=sq to check!
+	;
+	lsr	#grdshft,d0
+	lsr	#grdshft,d1
+	;
+	lsl	#5,d1
+	add	d1,d0
+	lea	0(a0,d0*8),a3	;square to check!
+	;
+	move	(a3)+,d4	;how many in square
+	bmi	.next
+	move	(a3),d1
+	;
+	move.l	map_ppnt(pc),a3
+	ifne	aga
+	lea	0(a3,d1*2),a3
+	elseif
+	add	d1,d1
+	lea	0(a3,d1),a3
+	endc
+	;
+.loop2	move	(a3)+,d0
+	lsl	#5,d0
+	lea	0(a2,d0),a4	;poly to check
+	;
+	cmp	(a4),d3
+	beq.s	.next2
+	move	d3,(a4)
+	;
+	bsr	findsegdist
+	;
+	cmp.l	ob_radsq(a5),d0
+	bcc.s	.next2
+	;
+	movem.l	(a7)+,d3-d7
+	moveq	#-1,d1	;coll!
+	rts
+	;
+.next2	dbf	d4,.loop2
+	;
+.next	dbf	d5,.loop
+	;
+	movem.l	(a7)+,d3-d7
+	moveq	#0,d0	;no coll!
+	rts
+
+findsegdist	;find distance from d6,d7 to zone in a4...
+	;
+	;find perpendicular dist.
+	;
+	move	zo_rx(a4),d0
+	sub	d6,d0
+	muls	zo_a(a4),d0
+	move	zo_rz(a4),d1
+	sub	d7,d1
+	muls	zo_b(a4),d1
+	add.l	d1,d0
+	add.l	d0,d0
+	swap	d0	;perpendicular dist.w
+	muls	d0,d0
+	;
+	;find distance from end
+	;
+	move	zo_rx(a4),d1
+	sub	d6,d1
+	muls	zo_na(a4),d1
+	move	zo_rz(a4),d2
+	sub	d7,d2
+	muls	zo_nb(a4),d2
+	add.l	d2,d1
+	add.l	d1,d1
+	swap	d1	;distance from end
+	;
+	cmp	zo_ln(a4),d1
+	bcs.s	.perp	;use perpendicular distance!
+	;
+	;gotta find radial distance
+	;
+	blt.s	.min	;minus?
+	sub	zo_ln(a4),d1
+.min	muls	d1,d1
+	add.l	d1,d0
+	;
+.perp	rts
+
+calccamera	;a0=player object
+	;	
+	move.l	camrots(pc),a2
+	;
+	move	ob_x(a0),camx
+	move	ob_y(a0),d0
+	add	ob_eyey(a0),d0
+	;
+	;add bounce!
+	;
+	move	ob_bounce(a0),d1
+	and	#255,d1
+	move	2(a2,d1*8),d1
+	muls	#20,d1
+	swap	d1
+	add	d1,d0
+	;
+	move	d0,camy
+	move	ob_z(a0),camz
+	move	ob_rot(a0),d0
+	and	#255,d0
+	move	d0,camr
+	move.l	camrots(pc),a1
+	;
+	ifne	aga
+	lea	0(a1,d0*8),a1
+	elseif
+	lsl	#3,d0
+	lea	0(a1,d0),a1
+	lsr	#3,d0
+	endc
+	;
+	move.l	(a1)+,cm1
+	move.l	(a1),cm3
+	;
+	;calc inverse camera matrix!
+	;
+	move.l	camrots(pc),a1
+	neg	d0
+	and	#255,d0
+	;
+	ifne	aga
+	lea	0(a1,d0*8),a1
+	elseif
+	lsl	#3,d0
+	lea	0(a1,d0),a1
+	lsr	#3,d0
+	endc
+	;
+	move.l	(a1)+,icm1
+	move.l	(a1),icm3
+	;
+	rts
+
+readjoys	;set up joyx0,joyy0,joyx1,joyy1
+	;
+	move.l	rawtable(pc),a0
+	moveq	#0,d0
+	key	$4f
+	beq.s	.nleft
+	moveq	#-1,d0
+.nleft	key	$4e
+	beq.s	.nrite
+	moveq	#1,d0
+.nrite	move	d0,joyx2
+	moveq	#0,d0
+	key	$4c
+	beq.s	.nup
+	moveq	#-1,d0
+.nup	key	$4d
+	beq.s	.ndown
+	moveq	#1,d0
+.ndown	move	d0,joyy2
+	key	$64
+	sne	d0
+	ext	d0
+	move	d0,d1
+	beq.s	.nofire
+	tst	joyb2
+	beq.s	.nofire
+	moveq	#0,d1
+.nofire	move	d1,joyf2
+	move	d0,joyb2
+	;
+	move.b	$bfe001,d3
+	move	$dff00a,d2	;joy0
+	bsr	readjoy
+	move	d0,joyx0
+	move	d1,joyy0
+	bsr	makerot
+	move	d0,joyr0
+	btst	#6,$bfe001                                      
+	seq	d0
+	ext	d0
+	move	d0,d1
+	beq.s	.nofire2
+	tst	joyb0
+	beq.s	.nofire2
+	moveq	#0,d1
+.nofire2	move	d1,joyf0
+	move	d0,joyb0
+	;
+	move	$dff00c,d2
+	bsr	readjoy
+	move	d0,joyx1
+	move	d1,joyy1
+	bsr	makerot
+	move	d0,joyr1
+	btst	#7,$bfe001
+	seq	d0
+	ext	d0
+	move	d0,d1
+	beq.s	.nofire3
+	tst	joyb1
+	beq.s	.nofire3
+	moveq	#0,d1
+.nofire3	move	d1,joyf1
+	move	d0,joyb1
+	;
+	rts
+
+makerot	;convert d0,d1 into a rotation type setting...
+	;
+	;0=up, 1=up/rite, 2=rite etc...
+	;
+	;<0=no dir
+	;
+	addq	#1,d0
+	lsl	#2,d0
+	addq	#1,d1
+	or	d1,d0
+	add	d0,d0
+	move	rots(pc,d0),d0
+	rts
+
+rots	;x=-1
+	dc	7,6,5,-1
+	;x=0
+	dc	0,-1,4,-1
+	;x=1
+	dc	1,2,3,-1
+
+readjoy	bsr	joydir
+	move	d1,d0
+	move	d2,d1
+	add	d1,d1
+	eor	d1,d2
+	;
+joydir	btst	#9,d2
+	bne.s	.neg
+	btst	#1,d2
+	bne.s	.pos
+	moveq	#0,d1
+	rts
+.neg	moveq	#-1,d1
+	rts
+.pos	moveq	#1,d1
+	rts
+
+gridoffs	incbin	gridoffs4.bin
+gridoffsf
+
+makewalls	;
+	;New approach!
+	;
+	;use poly's line eq to test perpendicular distance to wall
+	;produce nearest -> furthest wall list.
+	;
+	;optimizations...
+	;check if both z's are negative after rotation
+	;check if projected left/rite ends are on screen
+	;
+	addq	#1,frame
+	;
+	clr.l	inlist
+	move.l	#inlist,inlistf
+	;
+	move.l	map_poly(pc),a4
+	move.l	map_ppnt(pc),a3
+	move.l	map_grid(pc),a2
+	movem	camx(pc),d6-d7	;x,z
+	lsr	#grdshft,d6
+	lsr	#grdshft,d7
+	lea	gridoffs(pc),a6
+	moveq	#(gridoffsf-gridoffs)>>2-1,d5
+	;
+.loop	movem	(a6)+,d0-d1
+	add	d6,d0
+	cmp	#32,d0
+	bcc	.skip
+	add	d7,d1
+	cmp	#32,d1
+	bcc	.skip
+	;
+	;d0,d1=x/z of map to check!
+	;
+	lsl	#5,d1	;Y*32...
+	add	d1,d0	;+X
+	lea	0(a2,d0*8),a0	;mapgrid
+	move	(a0)+,d4	;how many polys here
+	bmi	.skip
+	move	(a0),d0	;poly data offset
+	;
+	ifne	aga
+	lea	0(a3,d0*2),a0
+	elseif
+	add	d0,d0
+	lea	0(a3,d0),a0
+	endc
+	;
+.loop2	move	(a0)+,d0	;poly#
+	lsl	#5,d0
+	lea	0(a4,d0),a1	;actual poly
+	move	frame(pc),d0
+	cmp	zo_done(a1),d0
+	beq	.skip3
+	move	d0,zo_done(a1)
+	tst	zo_open(a1)
+	bmi	.skip3
+	;
+	;OK, setup:
+	;
+	;d0=lx,d1=lz,d2=rx,d3=rz
+	;d4=t,d5=sc,d6=dist
+	;
+	;back face/dist check...
+	;
+	movem	d4-d7,-(a7)
+	;
+	movem	zo_lx(a1),d0-d3	;x1,z1,x2,z2
+	movem	camx(pc),d6-d7
+	;
+	sub	d6,d0
+	sub	d7,d1
+	sub	d6,d2
+	sub	d7,d3
+	;
+	move	d0,d4
+	move	d1,d5
+	muls	cm1(pc),d0
+	muls	cm2(pc),d5
+	add.l	d5,d0
+	add.l	d0,d0
+	swap	d0
+	;
+	muls	cm3(pc),d4
+	muls	cm4(pc),d1
+	add.l	d4,d1
+	add.l	d1,d1
+	swap	d1	;LZ
+	;
+	move	d2,d4
+	move	d3,d5
+	muls	cm1(pc),d2
+	muls	cm2(pc),d5
+	add.l	d5,d2
+	add.l	d2,d2
+	swap	d2	;RX
+	;
+	muls	cm3(pc),d4
+	muls	cm4(pc),d3
+	add.l	d4,d3
+	add.l	d3,d3
+	swap	d3	;RZ
+	;
+	;check Z's...
+	tst	d1
+	bgt.s	.zok
+	tst	d3
+	ble	.skip2
+.zok	;
+	cmp	#maxz,d1
+	blt.s	.zok2
+	cmp	#maxz,d3
+	bge	.skip2
+.zok2	;
+	;do backface check...generate a,b,c...
+	;
+	rol.l	#exshft,d0
+	rol.l	#exshft,d1
+	rol.l	#exshft,d2
+	rol.l	#exshft,d3
+	;
+	move	d1,d4
+	sub	d3,d4	;a
+	move	d2,d5
+	sub	d0,d5	;b
+	;
+	move	d0,d6
+	muls	d4,d6
+	move	d1,d7
+	muls	d5,d7
+	add.l	d7,d6
+	bpl.s	.front
+	;
+	;backface showing!...
+	bra	.skip2
+.front	;
+	move.l	memat(pc),a5
+	;
+	movem	d0-d5,wl_lx(a5)
+	move.l	d6,wl_c(a5)
+	;
+	;work out some screen positions!
+	tst	d1
+	bgt.s	.z1ok
+	;
+	;lz bad, rz must be OK...
+	;
+.ov1	move	minx(pc),wl_lsx(a5)
+	bra.s	.z1sk
+	;
+.z1ok	ext.l	d0
+	lsl.l	#focshft,d0
+	divs	d1,d0
+	bvs.s	.ov1
+	subq	#1,d0
+	cmp	maxx(pc),d0
+	bge	.skip2
+	move	d0,wl_lsx(a5)
+.z1sk	;
+	tst	d3
+	bgt.s	.z2ok
+	;
+	;rz bad, lz must be OK...
+	;
+.ov2	move	maxx(pc),wl_rsx(a5)
+	bra.s	.z2sk
+	;
+.z2ok	ext.l	d2
+	lsl.l	#focshft,d2
+	divs	d3,d2
+	bvs.s	.ov2
+	addq	#1,d2
+	cmp	minx(pc),d2
+	blt	.skip2
+	move	d2,wl_rsx(a5)
+.z2sk	;
+	cmp	d1,d3
+	bge.s	.zskp
+	exg	d1,d3
+.zskp	movem	d1/d3,wl_nz(a5)	;near/far Z
+	;
+	move.l	zo_t(a1),wl_t(a5)
+	move.l	zo_t+4(a1),wl_t+4(a5)
+	move	zo_sc(a1),wl_sc(a5)
+	move	zo_open(a1),wl_open(a5)
+	;
+	;add to end of inlist...
+	;
+	clr.l	(a5)
+	move.l	inlistf(pc),a1
+	move.l	a5,(a1)
+	move.l	a5,inlistf
+	add.l	#wl_size,memat
+	;
+.skip2	movem	(a7)+,d4-d7
+	;
+.skip3	dbf	d4,.loop2	;finish sq
+	;
+.skip	dbf	d5,.loop	;gridoffs
+	;
+makeoutlist	;create outlist from inlist
+	;
+	clr.l	outlist
+	move.l	#outlist,outlistf
+	;
+.loop	lea	inlist(pc),a0
+	move.l	(a0),d0
+	beq	.done
+	move.l	a0,a2	;save previous!
+	move.l	d0,a0
+	;
+	;OK, see if any are in front of a0...
+	;
+	lea	inlist(pc),a1
+	;
+.loop2	move.l	(a1),d0
+	beq	.none
+	move.l	a1,a3
+	move.l	d0,a1
+	cmp.l	a0,a1
+	beq.s	.loop2	;don't compare with self!
+	;
+	;check screen pos overlap...
+	;
+	move	wl_rsx(a0),d0
+	cmp	wl_lsx(a1),d0
+	blt	.loop2
+	;
+	move	wl_lsx(a0),d1
+	cmp	wl_rsx(a1),d1
+	bgt	.loop2
+	;
+	;check near/far Z overlap
+	;
+	move	wl_nz(a1),d2
+	cmp	wl_fz(a0),d2
+	bge	.loop2	;behind!
+	;
+	move	wl_fz(a1),d2
+	cmp	wl_nz(a0),d2
+	ble	.swap
+	;
+	;look at a0 points against a1 line...
+	;
+	movem	wl_a(a1),d5-d6
+	move.l	wl_c(a1),d7
+	;
+	move	wl_lx(a1),d0
+	sub	wl_lx(a0),d0
+	muls	d5,d0
+	move	wl_lz(a1),d1
+	sub	wl_lz(a0),d1
+	muls	d6,d1
+	add.l	d1,d0
+	eor.l	d7,d0
+	;
+	move	wl_lx(a1),d1
+	sub	wl_rx(a0),d1
+	muls	d5,d1
+	move	wl_lz(a1),d2
+	sub	wl_rz(a0),d2
+	muls	d6,d2
+	add.l	d2,d1
+	eor.l	d7,d1
+	;
+	;if both a0 in front, no swap
+	;
+	move.l	d0,d4
+	or.l	d1,d4
+	bpl	.loop2	;both a0's in front of a1!
+	;
+	;if both a0 behind, swap
+	;
+	and.l	d1,d0
+	bmi	.swap	;both a0's behind a1!
+	;
+	;look at a1 points against a0 line!
+	;
+	movem	wl_a(a0),d5-d6
+	move.l	wl_c(a0),d7
+	;
+	move	wl_lx(a0),d2
+	sub	wl_lx(a1),d2
+	muls	d5,d2
+	move	wl_lz(a0),d3
+	sub	wl_lz(a1),d3
+	muls	d6,d3
+	add.l	d3,d2
+	eor.l	d7,d2
+	;
+	move	wl_lx(a0),d3
+	sub	wl_rx(a1),d3
+	muls	d5,d3
+	move	wl_lz(a0),d4
+	sub	wl_rz(a1),d4
+	muls	d6,d4
+	add.l	d4,d3
+	eor.l	d7,d3
+	;
+	move.l	d2,d4
+	and.l	d3,d4
+	bmi	.loop2	;both a1's behind a0!
+	;
+	or.l	d3,d2
+	bmi	.loop2
+	;
+.swap	move.l	a1,a0
+	move.l	a3,a2
+	bra	.loop2
+	;
+.none	;OK, none in front of this (a0)
+	;
+	move.l	(a0),(a2)	;unlink from inlist
+	clr.l	(a0)
+	;
+	move.l	outlistf(pc),a2
+	move.l	a0,(a2)
+	move.l	a0,outlistf
+	bra	.loop
+	;
+.done	rts
+
+	elseif
+
+makeoutlist2	;create outlist from inlist
+	;
+.loop0	lea	inlist(pc),a0
+	;
+.loop	move.l	(a0),d0
+	beq	.done
+	move.l	a0,a2	;save previous!
+	move.l	d0,a0
+	;
+	;OK, see if any are in front of a0...
+	;
+	lea	inlist(pc),a1
+	;
+.loop2	move.l	(a1),d0
+	beq	.none
+	move.l	a1,a3
+	move.l	d0,a1
+	;
+	cmp.l	a0,a1
+	beq.s	.loop2	;don't compare with self!
+	;
+	;see if a1 is in front of a0
+	;
+	move	wl_nz(a1),d0
+	cmp	wl_fz(a0),d0
+	bge	.loop2	;behind!
+	;
+	move	wl_fz(a1),d0
+	cmp	wl_nz(a0),d0
+	ble	.swap
+	;
+	;now, compare screen x coords.....
+	;
+	move	wl_rsx(a0),d0
+	cmp	wl_lsx(a1),d0
+	blt	.loop2
+	;
+	move	wl_lsx(a0),d0
+	cmp	wl_rsx(a1),d0
+	bgt	.loop2
+	;
+	;look at a0 points against a1 line
+	;
+	;If Sgn((x3-x1)*a2+(y3-y1)*b2)<>Sgn(c2)
+	;  If Sgn((x3-x2)*a2+(y3-y2)*b2)<>Sgn(c2)
+	;    tr=-1:Return
+	;  EndIf
+	;EndIf
+	;
+	movem	wl_a(a1),d5-d6
+	move.l	wl_c(a1),d7
+	;
+	move	wl_lx(a1),d0
+	sub	wl_lx(a0),d0
+	muls	d5,d0
+	move	wl_lz(a1),d1
+	sub	wl_lz(a0),d1
+	muls	d6,d1
+	add.l	d1,d0
+	eor.l	d7,d0
+	;
+	move	wl_lx(a1),d1
+	sub	wl_rx(a0),d1
+	muls	d5,d1
+	move	wl_lz(a1),d2
+	sub	wl_rz(a0),d2
+	muls	d6,d2
+	add.l	d2,d1
+	eor.l	d7,d1
+	;
+	;OK, screen X's overlap...
+	;if both a0 in front, no swap
+	;
+	move.l	d0,d4
+	or.l	d1,d4
+	bpl	.loop2
+	;
+	;if both a0 behind, swap
+	;
+	move.l	d0,d4
+	and.l	d1,d4
+	bmi	.swap
+	;
+	;bra	.loop2
+	;
+	;elseif
+	;look at a1 points against a0 line
+	;
+	;If Sgn((x1-x3)*a1+(y1-y3)*b1)=Sgn(c1)
+	;  If Sgn((x1-x4)*a1+(y1-y4)*b1)=Sgn(c1)
+	;    tr=-1:Return
+	;  EndIf
+	;EndIf
+	;
+	movem	wl_a(a0),d5-d6
+	move.l	wl_c(a0),d7
+	;
+	move	wl_lx(a0),d2
+	sub	wl_lx(a1),d2
+	muls	d5,d2
+	move	wl_lz(a0),d3
+	sub	wl_lz(a1),d3
+	muls	d6,d3
+	add.l	d3,d2
+	eor.l	d7,d2
+	;
+	move	wl_lx(a0),d3
+	sub	wl_rx(a1),d3
+	muls	d5,d3
+	move	wl_lz(a0),d4
+	sub	wl_rz(a1),d4
+	muls	d6,d4
+	add.l	d4,d3
+	eor.l	d7,d3
+	;
+	;if both a1's behind, no swap
+	;
+	move.l	d2,d4
+	and.l	d3,d4
+	bmi	.loop2	;both a1's behind...
+	;
+	;if both a1's in front, swap
+	move.l	d2,d4
+	or.l	d3,d4
+	bpl	.swap
+	;
+	bra	.loop2
+	;
+	;elseif
+	;
+.swap	;a1 is infront of a0! make a1 new frontmost
+	bra	.loop
+	move.l	a1,a0
+	move.l	a3,a2
+	bra	.loop2
+	;
+.none	;OK, none in front of this (a0)
+	;
+	move.l	(a0),(a2)	;unlink from inlist
+	clr.l	(a0)
+	move.l	outlistf(pc),a2
+	move.l	a0,(a2)
+	move.l	a0,outlistf
+	bra	.loop0
+	;
+.done	;move.l	inlist(pc),d0
+	;bne	.loop0
+	rts
+
+	elseif
+
+castwalls	;process 'walls' list
+	;
+	move.l	castrots(pc),a6
+	move	minx(pc),d7
+	;
+	ifne	aga
+	lea	0(a6,d7*8),a6
+	elseif
+	move	d7,d0
+	lsl	#3,d0
+	lea	0(a6,d0),a6
+	endc
+	;
+	move.l	vertdraws(pc),a4
+	;
+.loop	;do this vert line!
+	;
+	lea	outlist(pc),a5
+	;
+.loop2	move.l	(a5),d0
+	beq	.empty
+	move.l	d0,a5
+	;
+	cmp	wl_lsx(a5),d7
+	blt.s	.loop2
+	cmp	wl_rsx(a5),d7
+	bgt.s	.loop2
+	;
+	movem	wl_lx(a5),d0-d1
+	muls	(a6),d0
+	muls	2(a6),d1
+	add.l	d1,d0	;LX!
+	bgt	.loop2
+	;
+	movem	wl_rx(a5),d1-d2
+	muls	(a6),d1
+	muls	2(a6),d2
+	add.l	d2,d1	;RX!
+	blt	.loop2
+	;
+	sub.l	d0,d1
+	;
+	swap	d1
+	tst	d1
+	ble.s	.dfix
+	neg.l	d0
+	divu	d1,d0
+	bvc.s	.noov
+.dfix	moveq	#-1,d0
+.noov	lsr	#1,d0	;fraction -> unsigned
+	;
+	cmp	wl_open(a5),d0
+	bcs.s	.loop2
+	;
+	movem	wl_lx(a5),d1-d2
+	muls	4(a6),d1
+	muls	6(a6),d2
+	add.l	d2,d1
+	add.l	d1,d1	;lz
+	;
+	movem	wl_rx(a5),d2-d3
+	muls	4(a6),d2
+	muls	6(a6),d3
+	add.l	d3,d2
+	add.l	d2,d2	;rz
+	;
+	sub.l	d1,d2
+	swap	d2
+	muls	d0,d2
+	add.l	d2,d2
+	add.l	d1,d2
+	;
+	swap	d2
+	;
+	cmp	#exone,d2
+	blt	.loop2
+	cmp	#maxz<<exshft,d2
+	bcs	.zisok
+	;
+.empty	move	#32767,vd_z(a4)
+	clr.l	vd_data(a4)
+	bra	.next
+.zisok	;
+	;d0=frac, d2=z, a5=item
+	;
+	;calc column#
+	;
+	move.l	a4,a0	;do vd...
+	;
+	move	wl_sc(a5),d1
+	bgt.s	.mul
+	neg	d1
+	ext.l	d0
+	add.l	d0,d0
+	lsr.l	d1,d0
+	bra.s	.scdone
+	;
+.mul	mulu	d1,d0
+.scdone	;
+	move.l	d0,d1
+	swap	d1	;0...sc-1
+	and	#7,d1
+	move.b	wl_t(a5,d1),d1
+	;
+	lea	textures(pc),a3
+	;
+	ifne	aga
+	move.l	0(a3,d1*4),a3	;texture!
+	elseif
+	lsl	#2,d1
+	move.l	0(a3,d1),a3
+	endc
+	;
+	lsl.l	#6,d0	;*64
+	swap	d0
+	and	#63,d0	;0...w-1
+	;
+	move	d0,d1
+	lsl	#6,d0
+	add	d1,d0
+	;
+	add	d0,a3
+	;
+	move	d2,d3
+	lsr	#exshft,d3
+	;
+	;a3=texture column!
+	;
+	tst.b	(a3)+
+	beq.s	.solid
+	;
+	bsr	makestrip	;do strip!
+	;
+.solid	move.l	a3,vd_data(a0)	;start column
+	;
+	;fill in vd struct...
+	;
+	move	d3,d4
+	move.l	darktable(pc),a2
+	move	0(a2,d4*2),d4
+	movem	d3-d4,vd_z(a0)
+	;
+	lsr	#exshft,d2
+	;
+	move	#-255,d3
+	sub	camy(pc),d3
+	move	d3,d1
+	ext.l	d3
+	lsl.l	#focshft,d3
+	divs	d2,d3	;top Y
+	;
+	move	camy(pc),d4
+	neg	d4
+	ext.l	d4
+	lsl.l	#focshft,d4
+	divs	d2,d4	;bot Y
+	;
+	sub	d3,d4
+	movem	d3/d4,vd_y(a0)
+	;
+	neg	d1
+	neg	d3
+	asr	#2,d1
+	;
+	;d1=real hite.q
+	;d4=screen hite.l...
+	;calc d1,step.q
+	;
+	ifne	aga
+	swap	d1
+	clr	d1
+	ext.l	d3
+	divu.l	d3,d1
+	elseif
+	divu	d3,d1	;d1 low=int part, hi=rem
+	move.l	d1,d0
+	clr	d0
+	divu	d3,d0
+	swap	d1
+	move	d0,d1
+	endc
+	;
+	move.l	d1,vd_ystep(a0)
+	;
+	cmp.l	a0,a4
+	bne	.loop2
+	;
+.next	;onto next display column
+	;
+	lea	vd_size(a4),a4
+	addq	#8,a6
+	addq	#1,d7
+	cmp	maxx(pc),d7
+	blt	.loop
+	;
+	check	.loop
+	;
+	rts
+
+makestrip	;this wall strip has see through bits!
+	;insert it into shape list instead of vd list!
+	;
+	move.l	memat(pc),a0
+	add.l	#vd_size,memat
+	;
+	move.l	memat(pc),a1
+	add.l	#sh_size,memat
+	;
+	clr.l	(a1)
+	move	d7,sh_x(a1)
+	move	d3,sh_z(a1)
+	clr.l	sh_shape(a1)
+	move.l	a0,sh_strip(a1)
+	;
+	;insert into drawlist!
+	;
+	movem.l	a2-a3,-(a7)
+	;
+	lea	shapelist(pc),a2
+.loop	move.l	(a2),d0
+	beq.s	.end
+	move.l	a2,a3
+	move.l	d0,a2
+	cmp	sh_z(a2),d3	;nearer...further in list
+	blt.s	.loop
+	move.l	a2,(a1)
+	move.l	a1,(a3)
+	bra.s	.ins
+.end	move.l	d0,(a1)
+	move.l	a1,(a2)
+.ins	movem.l	(a7)+,a2-a3
+	;
+	rts
+
+dbwindow	;a0=window to double buffer....
+	;
+	movem.l	wi_cop(a0),d0-d1
+	cmp.l	d0,d1
+	bne.s	.skip
+	move.l	wi_cop2(a0),d1
+.skip	move.l	d1,wi_cop(a0)
+	;
+usewindow	;a0=window to use...
+	;
+	move.l	a0,window
+	move.l	wi_cop(a0),cop
+	move.l	wi_bmap(a0),bitmap
+	;
+	move	wi_copmod(a0),copmod
+	move	wi_w(a0),d0
+	move	d0,width
+	move	d0,d1
+	lsr	#5,d1
+	move	d1,wdiv32
+	move	d0,d1
+	and	#31,d1
+	subq	#1,d1
+	move	d1,wrem32
+	;
+	lsr	#1,d0
+	move	d0,maxx
+	neg	d0
+	move	d0,minx
+	;
+	move	wi_h(a0),d1
+	move	d1,hite
+	lsr	#1,d1
+	move	d1,maxy
+	neg	d1
+	move	d1,miny
+	;
+	rts
+
+drawstrip_	macro
+	;
+	;a1=top of dest column
+	;a2=palettes base
+	;a4=strip data
+	;
+	move	hite(pc),d6
+	;
+	move.l	vd_data(a4),d0
+	beq	.vertskip
+	;
+	move.l	d0,a0
+	;
+	move	vd_h(a4),d5
+	move.l	vd_ystep(a4),d1
+	;
+	;setup d6, how much more to cls!
+	;
+	move	vd_y(a4),d0
+	add	midy(pc),d0
+	bpl.s	.noclip
+	;
+	;gotta clip Y
+	add	d0,d5	;reduce hite
+	ble	.vertskip
+	neg	d0
+	;
+	;d1=ystep.q, d0=y.w...
+	;
+	ifne	aga
+	ext.l	d0
+	mulu.l	d1,d0	;y step* y
+	elseif
+	move	d0,d2
+	mulu	d1,d2
+	swap	d1
+	mulu	d1,d0
+	swap	d0
+	add.l	d2,d0
+	swap	d1
+	endc
+	;
+	cmp	d6,d5
+	ble	.skipclip
+	move	d6,d5
+	bra.s	.skipclip
+	;
+.noclip	;OK, cls down to Y in d0!
+	;
+	ifne	solidstrip
+	;
+	beq.s	.skcl
+	move	d0,d2
+	lsl	#6,d2
+	or	#1,d2
+	bwait
+	move.l	qstrip(pc),$dff050	;APth
+	move.l	a1,$dff054		;Dpth
+	move	d2,$dff058		;size...
+	;
+	endc
+	;
+	;start draw from here...
+.skcl	move	d0,d2
+	mulu	copmod(pc),d2
+	add.l	d2,a1
+	;
+	move	d0,d2
+	add	d5,d2
+	sub	d6,d2
+	ble.s	.skipclip2
+	sub	d2,d5
+	ble	.vertskip
+	;
+.skipclip2	sub	d0,d6
+	moveq	#0,d0
+.skipclip	;
+	sub	d5,d6
+	;
+	subq	#1,d5
+	swap	d0
+	swap	d1
+	move	vd_pal(a4),d2
+	;
+	ifne	aga
+	move.l	0(a2,d2*4),a3
+	elseif
+	lsl	#2,d2
+	move.l	0(a2,d2),a3
+	endc
+	;
+	moveq	#0,d2
+	moveq	#0,d3
+	move	copmod(pc),d4
+	ext.l	d4
+	;
+	ifeq	solidstrip
+	move.b	-1(a0),d6
+	ext	d6
+	move	stripands(pc,d6*2),d6
+	endc
+	;	
+.vertloop	;a0=src texture column
+	;a1=dest coppoke
+	;a3=palette
+	;d0=current Y
+	;d1=Y step
+	;d2=0
+	;d3=$00xx
+	;d4=copmod
+	;d5=count
+	;
+	move.b	0(a0,d0),d3	;lut entry
+	;
+	ifeq	solidstrip
+	bne.s	.coln
+	and	d6,(a1)
+	add.l	d1,d0
+	addx	d2,d0
+	add.l	d4,a1
+	dbf	d5,.vertloop
+	bra.s	.vertskip
+	endc
+.coln	;
+	ifne	aga
+	move	0(a3,d3*2),(a1) ;colour!
+	elseif
+	add	d3,d3
+	move	0(a3,d3),(a1)
+	moveq	#0,d3
+	endc
+	;
+	add.l	d1,d0
+	addx	d2,d0
+	add.l	d4,a1
+	dbf	d5,.vertloop
+.vertskip	;
+	ifne	solidstrip
+	;
+	add	d6,d6
+	ble.s	.rts
+	move.l	qstripbot(pc),a0
+	sub	d6,a0
+	lsl	#5,d6
+	or	#1,d6
+	bwait
+	movem.l	a0-a1,$dff050
+	move	d6,$dff058
+.rts	;
+	endc
+	;
+	endm
+
+drawshapes	lea	shapelist(pc),a6
+	;
+.drawloop	move.l	(a6),d0
+	beq	.rts
+	move.l	d0,a6
+	move.l	sh_shape(a6),d0
+	bne.s	.shape
+	;
+	;wall strip!
+	;
+	move	sh_x(a6),d0
+	add	midx(pc),d0
+	move.l	cop(pc),a1
+	lea	coloffs(pc),a5
+	;
+	ifne	aga
+	add.l	0(a5,d0*4),a1
+	elseif
+	lsl	#2,d0
+	add.l	0(a5,d0),a1
+	endc
+	;
+	move.l	palette(pc),a2
+	move.l	sh_strip(a6),a4
+	bsr	drawstrip2
+	bra.s	.drawloop
+	;
+.shape	move.l	d0,a0
+	movem	sh_x(a6),d0-d2
+	move	sh_scale(a6),d7
+	movem	(a0)+,d3-d4	;x,y handles
+	;
+	muls	d7,d3	;* scale
+	asr.l	#8,d3
+	sub.l	d3,d0
+	;
+	muls	d7,d4
+	asr.l	#8,d4
+	sub.l	d4,d1
+	;
+	;d0=rotated X, d1=Y, d2=Z
+	;
+	lsl.l	#focshft,d0
+	divs	d2,d0	;Screen X
+	cmp	maxx(pc),d0
+	bge	.drawloop	;X too big!
+	;
+	lsl.l	#focshft,d1
+	divs	d2,d1	;Screen Y
+	cmp	maxy(pc),d1
+	bge	.drawloop
+	;
+	movem	(a0),d3-d4	;width/hite
+	;
+	move.l	d3,d5
+	muls	d7,d3
+	asr.l	#8-focshft,d3
+	divs	d2,d3	;screen width
+	ext.l	d3
+	ble	.drawloop
+	;
+	move.l	d4,d6
+	muls	d7,d4
+	asr.l	#8-focshft,d4
+	divs	d2,d4	;hite
+	ext.l	d4
+	ble	.drawloop
+	;
+	ifne	aga
+	swap	d5
+	divu.l	d3,d5
+	elseif
+	divu	d3,d5	;d1 low=int part, hi=rem
+	move.l	d5,d7
+	clr	d7
+	divu	d3,d7
+	swap	d5
+	move	d7,d5
+	endc
+	;
+	add	midx(pc),d0
+	bpl.s	.xcskip
+	add	d0,d3	;reduce width
+	ble	.drawloop
+	neg	d0
+	;
+	ifne	aga
+	ext.l	d0
+	mulu.l	d5,d0	;start column in shape
+	elseif
+	move	d0,d7
+	mulu	d5,d7
+	swap	d5
+	mulu	d5,d0
+	swap	d0
+	add.l	d7,d0
+	swap	d5
+	endc
+	;
+	moveq	#0,d7
+	cmp	width(pc),d3
+	ble.s	.xcdone
+	move	width(pc),d3
+	bra.s	.xcdone
+	;
+.xcskip	move	d0,d7	;sc X
+	add	d3,d0
+	sub	width(pc),d0
+	ble.s	.xcdone2
+	sub	d0,d3
+	ble	.drawloop
+.xcdone2	move.l	d5,d0
+	lsr.l	#1,d0
+.xcdone	;
+	ifne	aga
+	swap	d6
+	divu.l	d4,d6	;y step
+	elseif
+	divu	d4,d6
+	move	d6,-(a7)	;int part
+	clr	d6
+	divu	d4,d6
+	swap	d6
+	move	(a7)+,d6
+	swap	d6
+	endc
+	;
+	move.l	cop(pc),a1
+	;
+	add	midy(pc),d1
+	bpl.s	.ycskip
+	add	d1,d4	;hite
+	ble	.drawloop
+	neg	d1
+	;
+	ifne	aga
+	ext.l	d1
+	mulu.l	d6,d1
+	elseif
+	move	d7,-(a7)
+	move	d1,d7
+	mulu	d6,d7
+	swap	d6
+	mulu	d6,d1
+	swap	d1
+	add.l	d7,d1
+	swap	d6
+	move	(a7)+,d7
+	endc
+	;
+	cmp	hite(pc),d4
+	ble.s	.ycdone
+	move	hite(pc),d4
+	bra.s	.ycdone
+	;
+.ycskip	move	d1,-(a7)
+	mulu	copmod(pc),d1
+	add.l	d1,a1
+	move	(a7)+,d1
+	add	d4,d1
+	sub	hite(pc),d1
+	ble.s	.ycdone2
+	sub	d1,d4
+	ble	.drawloop
+.ycdone2	move.l	d6,d1
+	lsr.l	#1,d1
+.ycdone	;
+	;draw bit...
+	;
+	;a0=src, a1=dest, a2=palette
+	;
+	;d0.q=src x
+	;d1.q=src y
+	;d2.w = Z!
+	;d3.w=width
+	;d4.w=height
+	;d5.q=x step
+	;d6.q=y step
+	;d7.w=start screen column
+	;a0.l=src
+	;a1.l=dest
+	;a2.l=palette
+	;
+	move.l	a6,-(a7)
+	;
+	lea	coloffs,a5
+	;
+	ifne	aga
+	lea	0(a5,d7*4),a5
+	elseif
+	lsl	#2,d7
+	lea	0(a5,d7),a5
+	lsr	#2,d7
+	endc
+	;
+	move.l	vertdraws(pc),a6
+	mulu	#vd_size,d7
+	lea	0(a6,d7),a6	;column for Z compare!
+	;
+	move	d2,d7
+	move.l	darktable(pc),a2
+	move	0(a2,d7*2),d7
+	move.l	palette(pc),a2
+	;
+	ifne	aga
+	move.l	0(a2,d7*4),a2
+	elseif
+	lsl	#2,d7
+	move.l	0(a2,d7),a2
+	endc
+	;
+	subq	#1,d3
+	subq	#1,d4
+	swap	d0
+	swap	d1
+	swap	d5
+	swap	d6
+	addq	#2,a0
+	;
+.hloop	move.l	a1,a4
+	add.l	(a5)+,a4
+	;
+	cmp	vd_z(a6),d2
+	bcs	.zok
+	;
+	tst	thermo
+	beq	.zbad
+	;
+	bsr	thermostrip
+	bra.s	.zbad
+	;
+.zok	movem.l	d0-d1/d4-d5,-(a7)
+	;
+	mulu	(a0),d0
+	lea	2(a0,d0),a3	;src
+	;
+	move	copmod(pc),d7
+	ext.l	d7
+	moveq	#0,d5
+	moveq	#0,d0
+	;
+.vloop	move.b	0(a3,d1),d5
+	beq.s	.skip
+	;
+	ifne	aga
+	move	0(a2,d5*2),(a4)
+	elseif
+	add	d5,d5
+	move	0(a2,d5),(a4)
+	moveq	#0,d5
+	endc
+	;
+.skip	add.l	d6,d1	;next src Y
+	addx.l	d0,d1
+	add.l	d7,a4
+	dbf	d4,.vloop
+	;
+	movem.l	(a7)+,d0-d1/d4-d5
+	;
+.zbad	add.l	d5,d0
+	moveq	#0,d7
+	addx.l	d7,d0	;next src X
+	lea	vd_size(a6),a6
+	;
+	dbf	d3,.hloop
+	;
+	move.l	(a7)+,a6
+	bra	.drawloop
+	;
+.rts	rts
+
+thermostrip	movem.l	d0-d2/d4-d5,-(a7)
+	;
+	mulu	(a0),d0
+	lea	2(a0,d0),a3	;src
+	;
+	move	copmod(pc),d7
+	ext.l	d7
+	moveq	#0,d5
+	moveq	#0,d0
+	move	#$00f,d2
+	;
+.vloop	move.b	0(a3,d1),d5
+	beq.s	.skip
+	;
+	ifne	aga
+	move	0(a2,d5*2),d5
+	and	d2,d5
+	move	d5,(a4)
+	elseif
+	add	d5,d5
+	move	0(a2,d5),(a4)
+	moveq	#0,d5
+	endc
+	;
+.skip	add.l	d6,d1	;next src Y
+	addx.l	d0,d1
+	add.l	d7,a4
+	dbf	d4,.vloop
+	;
+	movem.l	(a7)+,d0-d2/d4-d5
+	;
+	rts
+
+renderwalls	;
+	move.l	palette(pc),a2
+	;
+	move.l	vertdraws(pc),a4
+	lea	coloffs(pc),a5
+	move	width(pc),d7
+	subq	#1,d7
+	;
+	move	copmod(pc),d0
+	subq	#2,d0
+	;
+	bwait
+	move.l	con0poke(pc),$dff040
+	move	#0,$dff064
+	move	d0,$dff066
+	move.l	#-1,$dff044
+	move	#0,$dff074
+	;
+.loop	move.l	cop(pc),a1
+	add.l	(a5)+,a1
+	;
+solidstrip	set	-1
+	drawstrip_
+	;
+	lea	vd_size(a4),a4
+	dbf	d7,.loop
+	;
+	rts
+
+solidstrip	set	0
+drawstrip2	;
+	drawstrip_
+	;
+	rts
+
+	dc	$f0ff,$ff0f,$fff0
+	dc	$f00f,$f0f0,$ff00
+	dc	$ffff
+	;
+stripands	;red,green,blue,yel,pur,cyn,wht
+
+vwait	move	#1,vbcounter
+.loop	tst	vbcounter
+	bgt.s	.loop
+	rts
+
+;************** DATA ***************************
+
+data
+
+gloomdata	dc	0	;non-zero = datadisk there!
+	dc	0
+fontw	dc	0
+fonth	dc	0
+fontoff	dc	0
+mode	dc	0
+
+lastgrunt	dc.l	0
+
+grunttable	dc.l	gruntsfx,gruntsfx2,gruntsfx3,gruntsfx4
+
+splatsfx	dc.l	0
+diesfx	dc.l	0
+footstepsfx	dc.l	0
+doorsfx	dc.l	0
+tokensfx	dc.l	0
+gruntsfx	dc.l	0
+gruntsfx2	dc.l	0
+gruntsfx3	dc.l	0
+gruntsfx4	dc.l	0
+shootsfx	dc.l	0
+
+chipzero	dc.l	0
+
+qcols	dc.b	1,2
+qpal	dc	2
+	dc	$544	;roof colour
+	dc	$544	;floor colour
+	cnop	0,4
+
+qstrip	dc.l	0
+qstripbot	dc.l	0
+con0poke	dc	$100,0	;100=no qfloor!
+
+outhand	dc.l	0
+
+	;starting positions!
+	;
+p1x	dc	0
+p1z	dc	0
+p1r	dc	0
+	dc	0
+
+p2x	dc	0
+p2z	dc	0
+p2r	dc	0
+	dc	0
+
+p1health	dc	0
+p2health	dc	0
+p1weapon	dc	0
+p2weapon	dc	0
+
+map_test	dc.l	0
+wins1	dc	0	;player 1 score
+wins2	dc	0	;player 2 score
+
+script	dc.l	0
+script2	dc.l	0
+scriptat	dc.l	0
+minbpos	dc	0
+maxbpos	dc	0
+finished	dc	0
+finished2	dc	0
+	;
+floorflag	dc	-1	;-1 = (black), 0 = split, 1=txt 
+roofflag	dc	-1
+	;
+paused	dc	0
+gametype	dc	0	;0,1,2
+font	dc.l	0
+	cnop	0,4
+
+thermo	dc	0	;thermograph
+infra	dc	0	;infrared
+	;
+maptable	dc.l	0
+sqr	dc.l	sqrinc
+darktable	dc.l	0
+inlist	dc.l	0
+inlistf	dc.l	inlist
+outlist	dc.l	0
+outlistf	dc.l	outlist
+
+window	dc.l	0
+dummy	dc.l	0
+player1	dc.l	0
+player2	dc.l	0
+doneflag	dc.l	0
+showflag	dc.l	0
+memory	dc.l	0
+memat	dc.l	0
+shapelist	dc.l	0
+bitmap	dc.l	0
+	;
+palette	dc.l	0	;the one we're using...
+	;
+palettes	ds.l	16	;16 palettes for 16 brightnesses
+palettesw	ds.l	16
+palettesr	ds.l	16
+palettesg	ds.l	16
+palettesb	ds.l	16
+palettesy	ds.l	16
+palettesp	ds.l	16
+palettesc	ds.l	16
+	;
+rgbs	dc.l	0	;table for calculating palettes
+
+joyx0	dc	0
+joyy0	dc	0
+joyr0	dc	0
+joyb0	dc	0
+joyf0	dc	0
+	;
+joyx1	dc	0
+joyy1	dc	0
+joyr1	dc	0
+joyb1	dc	0
+joyf1	dc	0
+	;
+joyx2	dc	0
+joyy2	dc	0
+joyr2	dc	0
+joyb2	dc	0
+joyf2	dc	0
+
+	cnop	0,4
+
+map_map	dc.l	0
+map_grid	dc.l	0
+map_poly	dc.l	0
+map_ppnt	dc.l	0
+map_rgbs	dc.l	map_rgbs_
+map_txts	dc.l	0
+map_anim	dc.l	0
+	;
+map_rgbsat	dc.l	0
+map_rgbsat2	dc.l	0
+map_rgbsfrom	dc.l	0
+remapped	dc.l	0
+	;
+camx	dc	0
+camz	dc	0
+camy	dc	0
+camr	dc	0
+
+	;camera matrix...
+cm1	dc	$7ffe
+cm2	dc	0
+cm3	dc	0
+cm4	dc	$7ffe
+
+	;inverse of camera matrix...
+icm1	dc	$7ffe
+icm2	dc	0
+icm3	dc	0
+icm4	dc	$7ffe
+
+castrots	dc.l	castrotsinc+8*160
+camrots	dc.l	camrotsinc
+
+vertdraws	dc.l	0
+
+cop	dc.l	0
+copmod	dc	0
+width	dc	0
+hite	dc	0
+minx	dc	0
+midx	;
+maxx	dc	0
+miny	dc	0
+midy	;
+maxy	dc	0
+wdiv32	dc	0
+wrem32	dc	0
+
+coplist	dc.l	0
+slice1	dc.l	0
+slice2	dc.l	0
+copstop	dc.l	0
+
+memlist	dc.l	0
+
+dispnest	dc	0
+
+coloffs	ds.l	320	;320 columns max
+
+iffwindow	;
+	dc.l	slice1
+	dc.l	copstop 
+	;
+	dc	0	;x
+	dc	42	;y
+	dc	320	;w
+	dc	248	;h
+	dc	1	;pw
+	dc	1	;ph
+	;
+	dc	0,0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+	dc.l	0,0,0
+
+defwindow1_1p	;
+	dc.l	slice1
+	dc.l	copstop
+	;
+	dc	160-39*2
+	dc	166-39*2
+	dc	78	;max width for 2 high = 90!
+	dc	78
+	dc	2
+	dc	2
+	;
+	dc	0,0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+	dc.l	0,0,0
+
+defwindow1_2p	;
+	dc.l	slice1
+	dc.l	slice2
+	;
+	dc	160-33*2
+	dc	42
+	dc	66	;max width for 2 high = 90!
+	dc	60
+	dc	2
+	dc	2
+	;
+	dc	0,0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+	dc.l	0,0,0
+
+defwindow2_2p	;
+	dc.l	slice2
+	dc.l	copstop
+	;
+	dc	160-33*2
+	dc	166
+	dc	66
+	dc	60
+	dc	2
+	dc	2
+	;
+	dc	0,0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+	dc.l	0,0,0
+
+window1	;
+	dc.l	slice1
+	dc.l	slice2	;copstop here for 1 window
+	;
+	dc	160-33*2
+	dc	42
+	dc	66	;max width for 2 high = 90!
+	dc	60
+	dc	2
+	dc	2
+	;
+	dc	0,0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+	dc.l	0,0,0
+
+window2	;
+	dc.l	slice2
+	dc.l	copstop
+	;
+	dc	160-33*2
+	dc	165	;WHAT!!!!!
+	dc	66
+	dc	60
+	dc	2
+	dc	2
+	;
+	dc	0,0
+	dc.l	0
+	dc.l	0
+	;
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc.l	0
+	dc	0
+	dc.l	0,0,0
+
+cols16	macro
+	dc	$180,$000,$182,0,$184,0,$186,0
+	dc	$188,0,$18a,0,$18c,0,$18e,0
+	dc	$190,0,$192,0,$194,0,$196,0
+	dc	$198,0,$19a,0,$19c,0,$19e,0
+	endm
+
+cols162	macro
+	dc	$180,$0c0,$182,0,$184,0,$186,0
+	dc	$188,0,$18a,0,$18c,0,$18e,0
+	dc	$190,0,$192,0,$194,0,$196,0
+	dc	$198,0,$19a,0,$19c,0,$19e,0
+	endm
+
+copinit	;initialization for display
+	;
+	dc	$1fc,15
+	;
+	dc	$096,$0120	;bitplane/spr DMA off
+	;
+	dc	$092,$38,$094,$a0
+	dc	$108,6*40,$10a,6*40
+	dc	$100,$7200
+	dc	$102,0
+	;
+	;lo colour nybs - lo bank
+	dc	$106,$0200
+cols1	cols162
+	;
+	;lo nybs - hi bank
+	dc	$106,$8200
+cols2	cols162
+	;
+	;hi colour nybs - lo bank
+	dc	$106,0
+cols3	cols16
+	;
+	;hi colour nybs - hi bank
+	dc	$106,$8000
+cols4	cols16
+	;
+	dc	26<<8+1,$fffe
+	;
+	dc	$140,0,$142,0,$144,0,$146,0
+	dc	$148,0,$14a,0,$14c,0,$14e,0
+	dc	$150,0,$152,0,$154,0,$156,0
+	dc	$158,0,$15a,0,$15c,0,$15e,0
+	dc	$160,0,$162,0,$164,0,$166,0
+	dc	$168,0,$16a,0,$16c,0,$16e,0
+	dc	$170,0,$172,0,$174,0,$176,0
+	dc	$178,0,$17a,0,$17c,0,$17e,0
+	;
+	;slice...
+sl1	;
+	ifne	aga
+	;
+	dc	$e0,0,$e2,0
+	dc	$e4,0,$e6,0
+	dc	$e8,0,$ea,0
+	dc	$ec,0,$ee,0
+	dc	$f0,0,$f2,0
+	dc	$f4,0,$f6,0
+	dc	$f8,0,$fa,0
+	dc	$08e,$2c81,$090,$f4c1	;diw
+	dc	$0001,$fffe	;wait for slice!
+	dc	$096,$8100
+	;
+	endc
+	;
+	dc	$084,0,$086,0,$08a,0
+sl2	;
+	ifne	aga
+	;
+	dc	$e0,0,$e2,0
+	dc	$e4,0,$e6,0
+	dc	$e8,0,$ea,0
+	dc	$ec,0,$ee,0
+	dc	$f0,0,$f2,0
+	dc	$f4,0,$f6,0
+	dc	$f8,0,$fa,0
+	;56
+	dc	$08e,$2c81,$090,$f4c1	;diw
+	;64
+	dc	$0001,$fffe	;wait for slice!
+	;68
+	dc	$096,$8100
+	;72
+	;
+	endc
+	;
+	dc	$084,0,$086,0,$08a,0
+	;
+cstop	dc	$096,$0100
+	dc	$ffff,$fffe
+copinitf	;
+
+bigdata
+
+textscrns	ds.l	8	;8*20=160
+textures	ds.l	160
+
+castrotsinc	incbin	castrots.bin
+camrotsinc	incbin	camrots.bin
+
+;************** SLOW SUBS **********************
+
+slowsubs
+
+medat	dc.l	0
+titlemed	dc.l	0
+fadevol	dc	0	;non-zero=fade to 0!
+
+relocate	;a0=pointer to what to relocate
+	;
+	move.l	(a0),d0
+	beq	.rts
+	move.l	d0,a1
+	add.l	#32,(a0)
+	lea	28(a1),a0
+	move.l	(a0)+,d0
+	lea	0(a0,d0.l*4),a1
+	cmp.l	#$3ec,(a1)+
+	bne.s	.rts
+	move.l	(a1)+,d0
+	addq	#4,a1
+	move.l	a0,d2
+	;
+.loop	move.l	(a1)+,d1	;offset
+	add.l	d2,0(a0,d1)
+	subq.l	#1,d0
+	bne.s	.loop
+	;
+.rts	rts
+
+initmed	lea	medat,a0
+	tst.l	(a0)
+	bne.s	.noreloc
+	;
+	move.l	#medplayer,(a0)
+	bsr	relocate
+	;
+.noreloc	move.l	medat(pc),a1
+	move.l	chipzero(pc),a0
+	jsr	(a1)
+	;
+	move.l	medat(pc),a1
+	move.l	titlemed(pc),a0
+	jsr	4(a1)
+	;
+	rts
+
+rawstuff	dc.l	0
+
+datafiles	dc.l	script
+scriptname	dc.b	'misc/script',0
+	even
+	dc.l	script2
+	dc.b	'misc/script2',0
+	even
+	;
+	dc.l	0
+
+progfiles	dc.l	font+1	;odd=chipmem!
+	dc.b	'misc/font.bin',0
+	even
+	dc.l	titlemed+1
+	dc.b	'sfxs/med1',0
+	even
+	dc.l	shootsfx+1
+	dc.b	'sfxs/shoot.bin',0
+	even
+	dc.l	gruntsfx+1
+	dc.b	'sfxs/grunt.bin',0
+	even
+	dc.l	gruntsfx2+1
+	dc.b	'sfxs/grunt2.bin',0
+	even
+	dc.l	gruntsfx3+1
+	dc.b	'sfxs/grunt3.bin',0
+	even
+	dc.l	gruntsfx4+1
+	dc.b	'sfxs/grunt4.bin',0
+	even
+	dc.l	tokensfx+1
+	dc.b	'sfxs/token.bin',0
+	even
+	dc.l	doorsfx+1
+	dc.b	'sfxs/door.bin',0
+	even
+	dc.l	footstepsfx+1
+	dc.b	'sfxs/footstep.bin',0
+	even
+	dc.l	diesfx+1
+	dc.b	'sfxs/die.bin',0
+	even
+	dc.l	splatsfx+1
+	dc.b	'sfxs/splat.bin',0
+	even
+	;
+	dc.l	0
+
+loadfiles	;
+	push
+	move.l	a0,a2
+	;
+.loop	move.l	(a2)+,d0
+	beq.s	.done
+	moveq	#1,d1
+	bclr	#0,d0
+	beq.s	.nochip
+	moveq	#2,d1
+.nochip	move.l	d0,a3
+	move.l	a2,a0
+	bsr	loadfile
+	move.l	d0,(a3)
+.z	tst.b	(a2)+
+	bne.s	.z
+	exg	a2,d0
+	addq.l	#1,d0
+	bclr	#0,d0
+	exg	a2,d0
+	bra.s	.loop
+	;
+.done	pull
+	rts
+
+diskmenu	dc.b	1
+	dc.b	'please insert a gloom data disk',0
+	even
+
+magicfiles	dc.l	magic
+	dc.b	'pics/blackmagic',0
+	even
+	dc.l	magicpal
+	dc.b	'pics/blackmagic.pal',0
+	even
+	dc.l	0
+
+magic	dc.l	0
+magicpal	dc.l	0
+	
+initmain	;
+	move.l	4.w,a0
+	move.l	276(a0),a0
+	clr.l	$114(a0)	;requesters off!
+	;
+	lea	ciaaname,a1
+	move.l	4.w,a6
+	jsr	-498(a6)
+	move.l	d0,a0
+	move.l	$64(a0),a0
+	move.l	a0,rawstuff
+	bset	#0,$3d(a0)
+	lea	$136(a0),a0
+	move.l	a0,rawtable
+	;
+	move.l	#8,d0
+	move.l	#$10002,d1
+	allocmem	chipzero
+	move.l	d0,chipzero
+	;
+	move.l	#256,d0	;128 words high max!
+	moveq	#2,d1
+	allocmem	qstrip
+	move.l	d0,qstrip
+	;
+	move.l	#256,d0
+	moveq	#1,d1
+	allocmem	maptable
+	move.l	d0,maptable
+	;
+	move.l	#32768,d0
+	moveq	#1,d1
+	allocmem	memory
+	move.l	d0,memory
+	;
+	move.l	#320*vd_size,d0
+	moveq	#1,d1
+	allocmem	vertdraws
+	move.l	d0,vertdraws
+	;
+	move.l	#maxz*2,d0
+	moveq	#1,d1
+	allocmem	darktable
+	move.l	d0,darktable
+	;
+	move.l	#24*256,d0
+	moveq	#1,d1
+	allocmem	palcalc
+	move.l	d0,rgbs
+	;
+	lea	palettes,a2
+	move	#16*8-1,d2
+	;
+.palloop	move.l	#512,d0
+	moveq	#1,d1
+	allocmem	palettes
+	move.l	d0,(a2)+
+	;
+	dbf	d2,.palloop
+	;
+	st	paused
+	clr	dispnest
+	clr	showflag
+	clr.l	font
+	bsr	initsfx
+	bsr	initvbint
+	bsr	initdisplay
+	bsr	dispoff
+	;
+	lea	magicfiles,a0
+	bsr	loadfiles
+	;
+	move.l	magic,a0
+	move.l	magicpal,a1
+	bsr	makeiff
+	bsr	showiff
+	bsr	dispon
+	move	#50,vbcounter
+	;
+	lea	progfiles,a0
+	bsr	loadfiles
+	;
+	bsr	initbmappal
+	bsr	initmed
+	bsr	makecoloffs
+	bsr	initdarktable
+	;
+	bset	#15,remapped
+	bne	.noremap
+	;
+	move.l	map_rgbs(pc),a0
+	move	#-1,(a0)+
+	move.l	a0,map_rgbsat
+	;
+	lea	bullet1,a0
+	jsr	remapanim
+	lea	bullet2,a0
+	jsr	remapanim
+	lea	bullet3,a0
+	jsr	remapanim
+	lea	bullet4,a0
+	jsr	remapanim
+	lea	bullet5,a0
+	jsr	remapanim
+	lea	sparks1,a0
+	jsr	remapanim
+	lea	sparks2,a0
+	jsr	remapanim
+	lea	sparks3,a0
+	jsr	remapanim
+	lea	sparks4,a0
+	jsr	remapanim
+	lea	sparks5,a0
+	jsr	remapanim
+	;
+	lea	128*128+groundtile,a2
+	move.l	a2,a0
+	bsr	addpal
+	lea	groundtile,a0
+	move.l	a2,a1
+	bsr	remap
+	;
+	lea	128*128+ceilingtile,a2
+	move.l	a2,a0
+	bsr	addpal
+	lea	ceilingtile,a0
+	move.l	a2,a1
+	bsr	remap
+	;
+	lea	qpal,a0
+	bsr	addpal
+	lea	qcols,a0
+	lea	qpal,a1
+	bsr	remap
+	;
+	move.l	map_rgbsat(pc),map_rgbsat2
+.noremap	;
+	move.l	map_rgbsat2(pc),map_rgbsat
+	;
+	moveq	#0,d0
+	bsr	loadanobj	;load player1
+	moveq	#1,d0
+	bsr	loadanobj	;load player2
+	moveq	#2,d0
+	bsr	loadanobj	;load tokens (health)
+	;
+	move.l	map_rgbsat(pc),map_rgbsfrom
+	;
+	alloclist	objects,#maxobjects,#ob_size
+	alloclist	doors,#maxdoors,#do_size
+	alloclist	blood,#maxblood,#bl_size
+	alloclist	gore,#maxgore,#go_size
+	;
+.w5sex	tst	vbcounter
+	bgt	.w5sex
+	;
+	bsr	dispoff
+	lea	iffwindow,a0
+	bsr	freewindow
+	move.l	magic,a1
+	freemem	magic
+	move.l	magicpal,a1
+	freemem	magicpal
+	;
+	bsr	forbid
+	rts
+
+askdatadisk	;
+	sub.l	a0,a0
+	bsr	makeiff
+	bsr	showiff
+	lea	diskmenu,a4
+	lea	iffwindow,a6
+	bsr	initmenu
+	bsr	dispon
+	;
+	bsr	permit
+	;
+	;OK, gotta swap disks and pick up data files!
+	;
+.wfd	bsr	vwait
+	;
+	move.l	#lockname,d1
+	moveq	#-2,d2
+	move.l	dosbase(pc),a6
+	jsr	-84(a6)	;lock?
+	move.l	d0,d1
+	beq.s	.wfd
+	jsr	-126(a6)	;make current dir!
+	move.l	d0,oldlock
+	;
+	bsr	dispoff
+	bsr	finitmenu
+	lea	iffwindow,a0
+	bsr	freewindow
+	;
+	lea	datafiles,a0
+	bsr	loadfiles
+	;
+	bsr	forbid
+	;
+	rts
+
+undir	move.l	oldlock(pc),d1
+	beq.s	.rts
+	clr	gloomdata
+	clr.l	oldlock
+	move.l	dosbase(pc),a6
+	jsr	-126(a6)	;CD to old current dir
+	move.l	d0,d1
+	jsr	-90(a6)	;unlock old (mine!)
+.rts	rts
+
+oldlock	dc.l	0
+
+lockname	dc.b	'gloomdata:',0
+	even
+
+initnewgame	bset	#15,gloomdata
+	bne.s	.gotdata
+	;
+	bsr	askdatadisk
+.gotdata	;
+	cmp	#2,gametype
+	bne	normalgame
+	;
+	;combat type game!
+	;
+	move	#6,p1_ob_collwith
+	move	#5,p2_ob_collwith
+	;
+	lea	combat,a0
+	lea	combatpal,a1
+	jsr	makeiff
+	jsr	showiff
+	;
+	lea	combatmenu,a4
+	lea	iffwindow,a6
+	jsr	initmenu
+	;
+	jsr	dispon
+	;
+.loop	jsr	selmenu
+	tst	d0
+	beq	.play
+	;
+	;change number of wins...
+	;
+	addq.b	#1,comnum
+	cmp.b	#'9',comnum
+	bls	.loop
+	move.b	#'2',comnum
+	bra	.loop
+	;
+.play	jsr	dispoff
+	jsr	finitmenu
+	;
+	lea	iffwindow,a0
+	jsr	freewindow
+	;
+	clr	wins1
+	clr	wins2
+	move.l	script2,scriptat
+	rts
+	;
+normalgame	move	#4,p1_ob_collwith
+	move	#4,p2_ob_collwith
+	;
+	move.l	script,a0
+	move.l	a0,scriptat
+	lea	conttxts(pc),a1
+	lea	conts(pc),a2
+	moveq	#0,d7	;how many conts found!
+	;
+	;OK, any continue points in script?
+	;
+.loop	move.b	(a0)+,d0
+	cmp.b	#10,d0
+	beq.s	.loop
+	and	#31,d0
+	bne.s	.more
+.loop2	cmp.b	#10,(a0)+
+	bne.s	.loop2
+	bra.s	.loop
+.more	cmp	#27,d0
+	bcc.s	.loop2
+	add	#96,d0
+	;
+	;command! fetch the rest...
+	;
+	move.b	(a0)+,d1
+	and	#31,d1
+	add	#96,d1
+	lsl.l	#8,d0
+	or	d1,d0
+	;
+	move.b	(a0)+,d1
+	and	#31,d1
+	add	#96,d1
+	lsl.l	#8,d0
+	or	d1,d0
+	;
+	move.b	(a0)+,d1
+	and	#31,d1
+	add	#96,d1
+	lsl.l	#8,d0
+	or	d1,d0
+	;
+	addq	#1,a0	;skip '_'
+	cmp.l	#'cont',d0
+	beq.s	.cont
+	cmp.l	#'done',d0
+	beq.s	.done
+	;
+.eol	cmp.b	#10,(a0)+
+	bne.s	.eol
+	bra	.loop
+	;
+.cont	;continue point!
+	;
+	lea	context(pc),a3
+.cont2	move.b	(a3)+,(a1)+
+	bne.s	.cont2
+	subq	#1,a1
+	;
+.clp	move.b	(a0)+,(a1)
+	cmp.b	#'_',(a1)+
+	bne.s	.clp
+	clr.b	-1(a1)
+	move.l	a0,(a2)+
+	addq	#1,d7
+	bra	.eol
+	;
+.done	tst	d7
+	beq	initpstuff
+	addq	#1,d7
+	move.b	d7,contmenu
+	;
+	;OK, need a continue game menu...
+	;
+	lea	gloom,a0
+	lea	gloompal,a1
+	bsr	makeiff
+	bsr	showiff
+	;
+	lea	contmenu,a4
+	lea	iffwindow,a6
+	bsr	initmenu
+	bsr	dispon
+	;
+	bsr	selmenu
+	;
+	bsr	dispoff
+	bsr	finitmenu
+	lea	iffwindow,a0
+	bsr	freewindow
+	;
+	move	curropt(pc),d0
+	beq	initpstuff
+	lea	conts(pc),a0
+	move.l	-4(a0,d0*4),scriptat
+	;
+initpstuff	move	#25,p1health
+	move	#25,p2health
+	move	#0,p1weapon
+	move	#0,p2weapon
+	rts
+
+conts	ds.l	8	;8 slots!
+
+combatmenu	dc.b	2
+	dc.b	'play combat game',0
+	dc.b	'win by '
+comnum	dc.b	'2 points',0
+	even
+
+context	dc.b	'CONTINUE FROM ',0
+	even
+
+contmenu	dc.b	1
+	dc.b	'START NEW GAME',0
+conttxts	ds.b	160
+	even
+
+execscript	move.l	scriptat(pc),a0
+	;
+.loop	move.b	(a0)+,d0
+	cmp.b	#10,d0
+	beq.s	.loop
+	and	#31,d0
+	bne.s	.more
+.loop2	cmp.b	#10,(a0)+
+	bne.s	.loop2
+	bra.s	.loop
+.more	cmp	#27,d0
+	bcc.s	.loop2
+	add	#96,d0
+	;
+	;command! fetch the rest...
+	;
+	move.b	(a0)+,d1
+	and	#31,d1
+	add	#96,d1
+	lsl.l	#8,d0
+	or	d1,d0
+	;
+	move.b	(a0)+,d1
+	and	#31,d1
+	add	#96,d1
+	lsl.l	#8,d0
+	or	d1,d0
+	;
+	move.b	(a0)+,d1
+	and	#31,d1
+	add	#96,d1
+	lsl.l	#8,d0
+	or	d1,d0
+	;
+	addq	#1,a0	;skip '_'
+	move.l	a0,scriptat
+	cmp.l	#'pict',d0
+	beq	scriptpict
+	cmp.l	#'draw',d0
+	beq	scriptdraw
+	cmp.l	#'text',d0
+	beq	scripttext
+	cmp.l	#'wait',d0
+	beq	scriptwait
+	cmp.l	#'play',d0
+	beq	scriptplay
+	cmp.l	#'done',d0
+	beq	scriptdone
+	cmp.l	#'dark',d0
+	beq	scriptdark
+	cmp.l	#'show',d0
+	beq	scriptshow
+	cmp.l	#'hide',d0
+	beq	scripthide
+	cmp.l	#'loop',d0
+	beq	scriptloop
+	cmp.l	#'rest',d0
+	beq	scriptrest
+	cmp.l	#'cont',d0
+	beq	scriptcont
+	;
+	warn	#$f80
+	;
+	;Hmmm....bad command
+.fucked	;
+scriptdone	bsr	freeiff
+	rts
+
+sccont	dc.b	'cont_'
+	even
+
+scriptcont	cmp.b	#10,(a0)+
+	bne.s	scriptcont
+	move.l	a0,scriptat
+	;
+	bra	execscript
+
+	;a0=name, a1=mem, d0=length
+
+scriptrest	;restart point! change to 'cont_' and save script out...
+	;
+	lea	sccont(pc),a1
+	subq	#5,a0
+.loop	move.b	(a1)+,(a0)
+	cmp.b	#'_',(a0)+
+	bne.s	.loop
+	;
+.leol	cmp.b	#10,(a0)+
+	bne.s	.leol
+	move.l	a0,scriptat
+	;
+	;save script!
+	;
+	bsr	permit
+	;
+	lea	scriptname,a0
+	move.l	script,a1
+	move.l	-12(a1),d0
+	subq.l	#8,d0
+	subq.l	#8,d0
+	;
+	bsr	savefile
+	;
+	bsr	forbid
+	bra	execscript
+
+scriptloop	move.l	script,scriptat
+	cmp	#2,gametype
+	bne	execscript
+	move.l	script2,scriptat
+	bra	execscript
+
+scripthide	bsr	dispoff
+	bra	execscript
+
+scriptshow	clr	pdelay
+	bsr	dispon
+	bra	execscript
+
+scriptdraw	move.l	pic,a0
+	move.l	picpal,a1
+	bsr	makeiff
+	bsr	showiff
+	bra	execscript
+
+fetchrest	move.l	scriptat,a0
+	moveq	#-1,d0
+.loop	addq	#1,d0
+	move.b	(a0)+,(a1)
+	cmp.b	#10,(a1)+
+	bne.s	.loop
+	clr.b	-(a1)
+	move.l	a0,scriptat
+	rts
+
+picpath	dc.b	'pics/'
+picname	ds.b	64
+pic_pal	dc.b	'.pal',0
+	even
+
+pic	dc.l	0
+picpal	dc.l	0
+
+freeiff	push
+	move.l	pic(pc),d0
+	beq.s	.rts
+	move.l	pic,a1
+	freemem	pic
+	move.l	picpal,a1
+	freemem	picpal
+	clr.l	pic
+.rts	pull
+	rts
+
+scriptpict	;load an iff
+	bsr	freeiff
+	lea	picname,a1
+	bsr	fetchrest
+	move.l	a1,-(a7)
+	bsr	permit
+	lea	picpath,a0
+	moveq	#1,d1
+	jsr	loadfile
+	move.l	d0,pic
+	lea	pic_pal,a0
+	move.l	(a7)+,a1
+.loop	move.b	(a0)+,(a1)+
+	bne.s	.loop
+	lea	picpath,a0
+	moveq	#1,d1
+	jsr	loadfile
+	move.l	d0,picpal
+	bsr	forbid
+	bra	execscript
+
+scriptdark	move.l	iffwindow+wi_cop,a0	;copperlist to darken!
+	;
+	;bank,32,bank,32...
+	;
+	addq	#6,a0
+	moveq	#3,d0	;4 lots of 32 colours
+	moveq	#31,d1
+	;
+	;skip first 8
+	;
+	;subq	#8,d1
+	;lea	32(a0),a0
+.loop	;
+	move	(a0),d2	;hi nyb
+	move	132(a0),d3	;lo nyb!
+	and	#$eee,d3
+	lsr	#1,d3
+	move	d2,d4
+	and	#$111,d4
+	lsl	#3,d4
+	or	d4,d3
+	and	#$eee,d2
+	lsr	#1,d2
+	move	d2,(a0)
+	move	d3,132(a0)
+	;
+	addq	#4,a0
+	dbf	d1,.loop
+	moveq	#31,d1
+	lea	136(a0),a0
+	dbf	d0,.loop
+	bra	execscript
+
+text	ds.b	64
+
+scripttext	;print text on iff
+	;a6=window, a4=message, d0=length of message, d6=Y
+	;
+	move	#2,pdelay
+	;
+	lea	text,a1
+	bsr	fetchrest
+	;
+	lea	iffwindow,a6
+	lea	text,a4
+	move	wi_bh(a6),d6
+	sub	#7,d6
+	bsr	printmess2
+	;
+	tst	pdelay
+	bmi	execscript
+	clr	pdelay
+	bra	execscript
+
+scriptwait	;
+	tst	pdelay
+	bmi	execscript
+	bsr	waitany
+	bra	execscript
+
+checkany	;
+.mwait	bsr	vwait
+	btst	#6,$bfe001
+	beq.s	.skip
+	btst	#7,$bfe001
+	beq.s	.skip
+	qkey	$40
+	bne	.skip
+	qkey	$44
+	bne	.skip
+	qkey	$45
+	bne	.skip
+	moveq	#0,d0
+	rts
+	;
+.skip	moveq	#-1,d0
+	rts
+
+waitany	;
+.mwait	bsr	vwait
+	btst	#6,$bfe001
+	beq.s	.skip
+	btst	#7,$bfe001
+	beq.s	.skip
+	qkey	$40
+	bne	.skip
+	qkey	$44
+	bne	.skip
+	qkey	$45
+	bne	.skip
+	bra	.mwait
+.skip	;
+	bsr	vwait
+	btst	#6,$bfe001
+	beq.s	.skip
+	btst	#7,$bfe001
+	beq.s	.skip
+	qkey	$40
+	bne	.skip
+	qkey	$44
+	bne	.skip
+	qkey	$45
+	bne	.skip
+	;
+	rts
+
+copywin	moveq	#wi_size/2-1,d0
+.loop	move	(a0)+,(a1)+
+	dbf	d0,.loop
+	rts
+
+freeobjlist	lea	objlist,a2
+	;
+.loop	move.l	(a2)+,d0
+	beq.s	.done
+	move.l	d0,a3
+	;
+	move.l	(a3),d0
+	beq.s	.skip
+	move.l	d0,a1
+	freemem	obj
+	clr.l	(a3)
+.skip	;
+	move.l	4(a3),d0
+	beq.s	.loop
+	move.l	d0,a1
+	freemem	objchunks
+	clr.l	4(a3)
+	bra.s	.loop
+	;
+.done	rts
+
+freeobjlist2	lea	objlist,a2
+	;
+.loop	move.l	-(a2),d0
+	beq.s	.done
+	move.l	d0,a3
+	;
+	move.l	(a3),d0
+	beq.s	.skip
+	move.l	d0,a1
+	freemem	obj2
+	clr.l	(a3)
+.skip	;
+	move.l	4(a3),d0
+	beq.s	.loop
+	move.l	d0,a1
+	freemem	objchunks2
+	clr.l	4(a3)
+	bra.s	.loop
+	;
+.done	rts
+
+mappath	dc.b	'maps/'
+mapname	ds.b	64
+	even
+
+getwindow	tst	gametype
+	bne.s	.p2
+	;
+	lea	defwindow1_1p,a0
+	lea	window1,a1
+	bsr	copywin
+	rts
+	;
+.p2	lea	defwindow1_2p,a0
+	lea	window1,a1
+	bsr	copywin
+	;
+	lea	defwindow2_2p,a0
+	lea	window2,a1
+	bsr	copywin
+	rts
+
+putwindow	tst	gametype
+	bne.s	.p2
+	;
+	lea	window1,a0
+	lea	defwindow1_1p,a1
+	bsr	copywin
+	rts
+	;
+.p2	lea	window1,a0
+	lea	defwindow1_2p,a1
+	bsr	copywin
+	;
+	lea	window2,a0
+	lea	defwindow2_2p,a1
+	bsr	copywin
+	rts
+
+scriptplay	;
+	lea	mapname,a1
+	bsr	fetchrest
+	;
+	move	#$1f3a,d0
+	bsr	seedrnd
+	;
+	clearlist	objects
+	clearlist	doors
+	clearlist	blood
+	clearlist	gore
+	;
+	clr.l	player1
+	clr.l	player2
+	tst	gametype
+	bne.s	.p2
+	not.l	player2	;no player 2!
+.p2	;
+	bsr	permit
+	;
+	move.l	map_test(pc),d0
+	bne.s	.use
+	move.l	#mappath,d0
+.use	move.l	d0,a0
+	moveq	#1,d1
+	bsr	loadfile
+	move.l	d0,map_map
+	;
+	bsr	initmap
+	bsr	loadtxts
+	moveq	#1,d0
+	bsr	execevent
+	;
+	bsr	forbid
+	;
+	bsr	calcpalettes
+	bsr	makepalettes
+	;
+	bsr	dispoff
+	;
+	bsr	freewindows
+	bsr	getwindow
+	bsr	calcbpos
+	;
+	lea	window1,a0
+	bsr	makewindow
+	lea	window1,a0
+	bsr	showwindow
+	move.l	player1,a5
+	move	ob_x(a5),p1x
+	move	ob_z(a5),p1z
+	move	ob_rot(a5),p1r
+	move.l	#window1,ob_window(a5)
+	cmp	#2,gametype
+	beq.s	.psk
+	move	p1health(pc),ob_hitpoints(a5)
+	move	p1weapon(pc),ob_weapon(a5)
+.psk	bsr	initplayer
+	;
+	tst	gametype
+	beq.s	.p1
+	;
+	lea	window2,a0
+	bsr	makewindow
+	lea	window2,a0
+	bsr	showwindow
+	move.l	player2,a5
+	move	ob_x(a5),p2x
+	move	ob_z(a5),p2z
+	move	ob_rot(a5),p2r
+	move.l	#window2,ob_window(a5)
+	cmp	#2,gametype
+	beq.s	.psk2
+	move	p2health(pc),ob_hitpoints(a5)
+	move	p2weapon(pc),ob_weapon(a5)
+.psk2	bsr	initplayer
+.p1	;
+game	clr	finished
+	clr	finished2
+	clr	doneflag
+	clr	showflag
+	clr	paused
+	;
+	bsr	drawall2
+	;
+	bsr	dispon
+	;
+mainloop	bsr	drawall
+	qkey	$45	;ESC?
+	beq	.notesc
+	bsr	dogamemenu
+.notesc	move	finished(pc),d0
+	beq.s	mainloop
+	;
+	st	paused
+	bsr	dispoff
+	bsr	freewindows
+	bsr	freeobjlist
+	bsr	freetxts
+	bsr	freemap
+	;
+	move	finished(pc),d0	;why they finished
+	cmp	#3,d0	;completed?
+	bne	.notfin
+	;
+	cmp	#2,gametype
+	beq	.com
+	;
+	move.l	player1,a5
+	move	ob_hitpoints(a5),p1health
+	move	ob_weapon(a5),p1weapon
+	tst	gametype
+	beq.s	.p1p1
+	move.l	player2,a5
+	move	ob_hitpoints(a5),p2health
+	move	ob_weapon(a5),p2weapon
+.p1p1	;
+	tst.l	map_test
+	beq	execscript
+	bra	.notfin
+.com	;
+	move	wins1(pc),d0
+	sub	wins2(pc),d0
+	move	d0,d1
+	bpl.s	.wsk
+	neg	d1
+.wsk	add	#48,d1
+	cmp.b	comnum(pc),d1
+	bcs	execscript
+	;
+	move	d0,-(a7)
+	bsr	freeiff
+	;
+	lea	combat,a0
+	lea	combatpal,a1
+	jsr	makeiff
+	jsr	showiff
+	;
+	lea	p1wins,a4
+	tst	(a7)+
+	bpl.s	.p1
+	lea	p2wins,a4
+.p1	lea	iffwindow,a6
+	move.l	a4,a0
+	moveq	#-1,d0
+.cch	addq	#1,d0
+	tst.b	(a0)+
+	bne.s	.cch
+	move	wi_bh(a6),d6
+	lsr	#1,d6
+	subq	#3,d6
+	bsr	printmess2
+	;
+	jsr	dispon
+	bsr	waitany
+	jsr	dispoff
+	;
+	lea	iffwindow,a0
+	bsr	freewindow
+	;
+	rts
+	;
+.notfin	bsr	freeiff
+	rts
+
+p1wins	dc.b	'player one wins combat game!',0
+	even
+p2wins	dc.b	'player two wins combat game!',0
+	even
+
+freemap	move.l	map_map,d0
+	beq.s	.done
+	move.l	d0,a1
+	freemem	map
+	clr.l	map_map
+.done	rts
+
+dointro	;
+	lea	gloom,a0
+	lea	gloompal,a1
+	jsr	makeiff
+	jsr	showiff
+	;
+	lea	gloombrush,a0
+	lea	iffwindow,a1
+	move.l	wi_bmap(a1),a1
+	add.l	#168*7*40,a1
+	bsr	decodeiff
+	;
+	bsr	dispon
+	;
+	bsr	waitany
+	;
+	lea	startmenu,a4
+	lea	iffwindow,a6
+	jsr	initmenu
+	;
+.sel	jsr	selmenu
+	cmp	#3,d0
+	bne	.notmode
+	;
+	addq	#1,mode
+	and	#1,mode
+	move	mode(pc),d0
+	lea	modes,a0
+	move.l	0(a0,d0*4),a0
+	lea	modetxt,a1
+.moloop	move.b	(a0)+,(a1)+
+	bne.s	.moloop
+	;
+	bra	.sel
+	;
+.notmode	cmp	#4,d0
+	bne	.notp1
+	;
+	lea	p1ctype(pc),a1
+	lea	p1_ob_cntrl,a2
+	lea	p2_ob_cntrl,a3
+	;
+.here	addq	#1,(a2)
+	cmp	#3,(a2)
+	bcs.s	.pok
+	clr	(a2)
+.pok	move	(a2),d0
+	cmp	(a3),d0
+	beq.s	.here
+	;
+	lea	popts(pc),a0
+	move.l	0(a0,d0*4),a0
+	;
+.sk	move.b	(a0)+,(a1)+
+	bne.s	.sk
+	bra.s	.sel
+	;
+.notp1	cmp	#5,d0
+	bne.s	.notp2
+	;
+	lea	p2ctype(pc),a1
+	lea	p2_ob_cntrl,a2
+	lea	p1_ob_cntrl,a3
+	bra.s	.here
+	;
+.notp2	cmp	#6,d0
+	bne	.notabout
+	;
+	;about text...
+	;
+	bsr	dispoff
+	bsr	finitmenu
+	lea	gloom,a0
+	lea	gloompal,a1
+	bsr	makeiff
+	bsr	showiff
+	;
+	lea	abouttext,a4
+	lea	iffwindow,a6
+	bsr	initmenu
+	move	numopts(pc),-(a7)
+	move	#1,numopts
+	;
+	bsr	dispon
+	bsr	selmenu
+	;
+	move	(a7)+,numopts
+	;
+	bsr	dispoff
+	bsr	finitmenu
+	bra	dointro
+	;
+.notabout	move	d0,gametype
+	;
+	jsr	dispoff
+	jsr	finitmenu
+	;
+	lea	iffwindow,a0
+	jsr	freewindow
+	;
+	rts
+
+popts	dc.l	popt1,popt2,popt3
+popt1	dc.b	'JOYSTICK 2',0
+popt2	dc.b	'JOYSTICK 1',0
+popt3	dc.b	' KEYBOARD ',0
+	even
+
+makeiff	;show an IFF picture...128 colours...320 X 240
+	;
+	;a0=trimmed iff, a1=iff's palette
+	;
+	push
+	movem.l	a0-a1,-(a7)
+	lea	iffwindow,a0
+	bsr	freewindow
+	movem.l	(a7)+,a0-a1
+	;
+	lea	iffwindow,a2
+	cmp.l	#0,a0
+	bne.s	.notblank
+	addq	#1,a0
+	move.l	a0,wi_iff(a2)
+	move.l	#rgbs16,a1
+	bra.s	.blank
+	;
+.notblank	move.l	a0,wi_iff(a2)
+.blank	move.l	a1,wi_pal(a2)
+	;
+	;copy font palette to IFF palette!
+	;
+	move.l	font(pc),d0
+	beq.s	.nofont
+	;
+	move.l	d0,a0
+	add.l	(a0),a0
+	addq	#2,a0
+	clr.l	(a1)+
+	moveq	#6,d0
+.loop	move	(a0),(a1)+
+	move	(a0)+,(a1)+
+	dbf	d0,.loop
+.nofont	;
+	move.l	a2,a0
+	bsr	makewindow
+	;
+	pull
+	rts
+
+showiff	push
+	lea	iffwindow,a0
+	bsr	showwindow
+	pull
+	rts
+
+gamemenu	dc.b	7
+	dc.b	'CONTINUE',0
+	dc.b	'RESOLUTION',0
+	dc.b	'WINDOW SIZE',0
+	dc.b	'LARGEST WINDOW',0
+	dc.b	'FLOOR',0
+	dc.b	'CEILING',0
+	dc.b	'QUIT GAME',0
+	even
+
+modes	dc.l	mode1,mode2
+
+mode1	dc.b	'MEATY',0
+
+mode2	dc.b	'MESSY',0
+
+startmenu	dc.b	8
+	dc.b	'ONE PLAYER GAME',0
+	dc.b	'TWO PLAYER GAME',0
+	dc.b	'TWO PLAYER COMBAT',0
+	dc.b	'MODE...'
+modetxt	dc.b	'MEATY',0
+	dc.b	'PLAYER 1 '
+p1ctype	dc.b	'JOYSTICK 1',0
+	dc.b	'PLAYER 2 '
+p2ctype	dc.b	'JOYSTICK 2',0
+	dc.b	'ABOUT GLOOM',0
+	dc.b	'EXIT GLOOM',0
+	even
+
+	;menustrip data;
+	;0.l  : textaddress
+	;8.l  : strip address
+
+menuwindow	dc.l	0
+menubmap	dc.l	0
+
+menuy	dc	0
+numopts	dc	0	;how many menu options
+curropt	dc	0	;current option
+flashdelay	dc	0
+
+menustrips	ds.l	32	;16 max!
+
+initmenu	clr	curropt
+initmenu2	;
+	;do a menu...menu in a4, window in a6
+	;
+	move.l	a6,menuwindow
+	move.b	(a4)+,d0	;how many
+	ext	d0
+	move	d0,numopts
+	move	d0,-(a7)	;counter
+	move	wi_bh(a6),d6
+	move.l	wi_bmap(a6),menubmap
+	lsr	#1,d6
+	move	fonth(pc),d2
+	lsr	#1,d2
+	mulu	d2,d0
+	sub	d0,d6	;Y
+	move	d6,menuy
+	lea	menustrips(pc),a5
+	;
+.loop	;save strip!
+	;
+	move.l	a4,(a5)+
+	;
+	move	#40*7,d0
+	mulu	fonth(pc),d0
+	moveq	#2,d1
+	allocmem	menustrip
+	move.l	d0,(a5)+
+	move.l	d0,a1
+	move.l	wi_bmap(a6),a0
+	move	d6,d0
+	mulu	#7*40,d0
+	add.l	d0,a0
+	;
+	move	#40*7,d0
+	mulu	fonth(pc),d0
+	lsr.l	#2,d0
+	subq	#1,d0
+	;
+.sloop	move.l	(a0)+,(a1)+
+	dbf	d0,.sloop
+	;
+	move.l	a4,a0
+	moveq	#-1,d0
+.cnt	addq	#1,d0
+	tst.b	(a0)+
+	bne.s	.cnt
+	;
+	bsr	printmess2
+	;
+	add	fonth(pc),d6
+	subq	#1,(a7)
+	bgt.s	.loop
+	addq	#2,a7
+	;
+	ifne	debugmem
+	bsr	showmem
+	lea	memasc,a4
+	moveq	#8,d0
+	bsr	printmess2
+	;
+	move.l	freememerr,d0
+	beq.s	.nomemerr
+	clr.l	freememerr
+	move.l	d0,a4
+	move.l	d0,a0
+	moveq	#-1,d0
+.ccloop	addq	#1,d0
+	tst.b	(a0)+
+	bne.s	.ccloop
+	add	fonth(pc),d6
+	bsr	printmess2
+.nomemerr	;
+	endc
+	;
+	rts
+
+	ifne	debugmem
+showmem	push
+	move.l	4.w,a6
+	moveq	#1,d1
+	jsr	-216(a6)
+	lea	memasc,a0
+	moveq	#7,d1
+.loop	rol.l	#4,d0
+	move	d0,d2
+	and	#15,d2
+	add	#48,d2
+	cmp	#58,d2
+	bcs.s	.skip
+	addq	#7,d2
+.skip	move.b	d2,(a0)+
+	dbf	d1,.loop
+	pull
+	rts
+	;
+memasc	dc.b	'12345678',0
+	even
+	endc
+
+optoff	move	curropt(pc),d6
+	lea	menustrips(pc),a0
+	move.l	4(a0,d6*8),a0	;address of strip
+	mulu	fonth(pc),d6
+	add	menuy(pc),d6
+	mulu	#7*40,d6
+	move.l	menubmap(pc),a1
+	add.l	d6,a1
+	;
+	move	fonth(pc),d0
+	mulu	#7,d0
+	lsl	#6,d0
+	or	#20,d0
+	;
+	btst	#6,$dff002
+.bwait	btst	#6,$dff002
+	bne.s	.bwait
+	;
+	move.l	#$9f00000,$dff040
+	move.l	#-1,$dff044
+	move	#0,$dff064
+	move	#0,$dff066
+	move.l	a0,$dff050
+	move.l	a1,$dff054
+	move	d0,$dff058
+	;
+	move	#13,flashdelay
+	;
+	rts
+
+opton	move	curropt(pc),d6
+	lea	menustrips(pc),a0
+	move.l	0(a0,d6*8),a4	;text!
+	mulu	fonth(pc),d6
+	add	menuy(pc),d6
+	;
+	;a6=window, a4=message, d0=length of message, d6=Y
+	;
+	move.l	a4,a0
+	moveq	#-1,d0
+.loop	addq	#1,d0
+	tst.b	(a0)+
+	bne.s	.loop
+	;
+	move.l	menuwindow(pc),a6
+	bsr	printmess2
+	;
+	move	#13,flashdelay
+	;
+	rts
+
+checkup	move	joyy1(pc),d0
+	bmi.s	.yes
+	move	joyy2(pc),d0	;is one up?
+	bmi.s	.yes
+	moveq	#-1,d0
+	rts
+.yes	moveq	#0,d0
+	rts
+
+checkdown	move	joyy1(pc),d0
+	bgt.s	.yes
+	move	joyy2(pc),d0
+	bgt.s	.yes
+	moveq	#-1,d0
+	rts
+.yes	moveq	#0,d0
+	rts
+
+checksel	move	joyb1(pc),d0
+	bne.s	.yes
+	move	joyb2(pc),d0
+	bne.s	.yes
+	move.l	rawtable(pc),a0
+	key	$40	;spc?
+	bne.s	.yes
+	key	$44
+	bne.s	.yes
+	moveq	#-1,d0
+	rts
+.yes	moveq	#0,d0
+	rts
+
+selmenu	;select a menu item...return item in d0
+	;
+	;flash selected option on/off
+	;
+	bsr	optoff
+	;
+.loop1	bsr	vwait
+	bsr	readjoys
+	bsr	checkup
+	beq	.up2
+	bsr	checkdown
+	beq	.down2
+	bsr	checksel
+	beq	.sel2
+	;
+	subq	#1,flashdelay
+	bgt	.loop1
+	;
+	bsr	opton
+	;
+.loop2	bsr	vwait
+	bsr	readjoys
+	bsr	checkup
+	beq	.up
+	bsr	checkdown
+	beq	.down
+	bsr	checksel
+	beq	.sel
+	;
+	subq	#1,flashdelay
+	bgt	.loop2
+	;
+	bra	selmenu
+	;
+.up2	bsr	opton
+.up	subq	#1,curropt
+	bpl.s	.upskip
+	move	numopts(pc),d0
+	subq	#1,d0
+	move	d0,curropt
+.upskip	bsr	vwait
+	bsr	readjoys
+	bsr	checkup
+	beq	.upskip
+	bra	selmenu
+	;
+.down2	bsr	opton
+.down	addq	#1,curropt
+	move	curropt(pc),d0
+	cmp	numopts(pc),d0
+	bcs.s	.downskip
+	clr	curropt
+.downskip	bsr	vwait
+	bsr	readjoys
+	bsr	checkdown
+	beq	.downskip
+	bra	selmenu
+	;
+.sel2	bsr	opton
+.sel	bsr	vwait
+	bsr	readjoys
+	bsr	checksel
+	beq	.sel
+	move	curropt(pc),d0
+	rts
+
+finitmenu	;clean up menu operation
+	;
+	lea	menustrips(pc),a5
+	move	numopts(pc),d2
+	subq	#1,d2
+.loop	addq	#4,a5
+	move.l	(a5)+,a1
+	freemem	menustrip
+	dbf	d2,.loop
+	rts
+
+initbmappal	move.l	font(pc),a0
+	add.l	(a0),a0
+	addq	#2,a0
+	moveq	#14,d0
+	move.l	coplist(pc),a1
+	move.l	a1,a2
+	move.l	a1,a3
+	move.l	a1,a4
+	lea	cols1+6-copinit(a1),a1
+	lea	cols2+6-copinit(a2),a2
+	lea	cols3+6-copinit(a3),a3
+	lea	cols4+6-copinit(a4),a4
+	;
+.loop	move	(a0),(a1)
+	move	(a0),(a2)
+	move	(a0),(a3)
+	move	(a0)+,(a4)
+	addq	#4,a1
+	addq	#4,a2
+	addq	#4,a3
+	addq	#4,a4
+	dbf	d0,.loop
+	rts
+
+initdarktable	;
+	move	#maxz-1,d2
+	move.l	sqr(pc),a0
+	move.l	darktable(pc),a1
+	;
+.loop	move	d2,d3
+	lsl	#3,d3
+	move	0(a0,d3),d3
+	lsr	#3,d3
+	eor	#15,d3
+	move	d3,(a1)+
+	;
+	dbf	d2,.loop
+	;
+	rts
+
+rawtable	dc.l	0
+ciaaname	dc.b	'ciaa.resource',0
+	even
+
+savefile	;a0=name, a1=mem, d0=length
+	push
+	;
+	movem.l	d0/a1,-(a7)
+	;
+	move.l	dosbase,a6
+	move.l	a0,d1
+	move.l	#1006,d2
+	jsr	-30(a6)
+	move.l	d0,d7
+	beq	.done
+	;
+	move.l	d7,d1
+	movem.l	(a7)+,d0/a1
+	move.l	a1,d2
+	move.l	d0,d3
+	jsr	-48(a6)
+	;
+	move.l	d7,d1
+	jsr	-36(a6)
+	;
+.done	pull
+	rts
+
+fileheader	ds.b	14
+
+loadfile	;a0=name, d1=memtype
+	;
+	;decrunch file if nec.
+	;
+	;return d0=pointer
+	;
+	push
+	;
+	move.l	d1,d5	;save memtype
+	move.l	dosbase,a6
+	;
+	move.l	a0,d1
+	move.l	#1005,d2
+	jsr	-30(a6)	;open it!
+	move.l	d0,d7	;handle
+	beq	.err
+	;
+	move.l	d7,d1
+	moveq	#0,d2
+	moveq	#1,d3
+	jsr	-66(a6)	;seek to end
+	;
+	move.l	d7,d1
+	moveq	#0,d2
+	moveq	#-1,d3	;seek to start
+	jsr	-66(a6)
+	;
+	move.l	d0,d4	;length=prev filepos
+	;
+	move.l	d7,d1
+	move.l	#fileheader,d2
+	moveq	#14,d3
+	jsr	-42(a6)	;read!
+	;
+	move.l	d0,-(a7)	;how many bytes read!
+	;
+	move.l	d7,d1
+	moveq	#0,d2
+	moveq	#-1,d3	;back to start
+	jsr	-66(a6)
+	;
+	cmp.l	#14,(a7)+
+	bcs.s	.nocrunch
+	;
+	moveq	#0,d6
+	move.l	fileheader(pc),d0
+	cmp.l	#'CrM2',d0
+	beq.s	.crunch
+	cmp.l	#'CrM!',d0
+	bne.s	.nocrunch
+	;
+.crunch	cmp.l	fileheader+6(pc),d4 ;loadlen>destlen?
+	bcc.s	.skip
+	move.l	fileheader+6(pc),d4 ;length to allocate
+.skip	;
+	moveq	#14,d6
+	add	fileheader+4(pc),d6
+	bsr	loadit
+	move.l	d0,a0	;src
+	add.l	d6,d0	;dest
+	move.l	d0,a1
+	jsr	decrm+32
+	pull
+	rts
+.nocrunch	;
+	bsr	loadit
+	;
+.err	pull
+	rts
+
+loadit	;d4=length to alloc/read, d5=memtype
+	;seek to start, load, close and return base in d0.
+	;
+	move.l	d4,d0
+	move.l	d5,d1
+	move.l	d6,d2	;offset XS
+	allocmem2	loadfile
+	sub.l	d6,d0
+	;
+	move.l	d7,d1
+	move.l	d0,d2
+	move.l	d4,d3	;read len
+	jsr	-42(a6)	;read
+	move.l	d7,d1
+	jsr	-36(a6)	;close
+	move.l	d2,d0
+	;
+	rts
+
+andtable	dc	$ffff,0	;rgb and, brightness add...
+	dc	$ff00,8
+	dc	$f0f0,8
+	dc	$f00f,12
+	dc	$fff0,8
+	dc	$ff0f,8
+	dc	$f0ff,8
+
+makepalettes	;
+	;make r,g,b,y,p,c palettes
+	;
+	lea	andtable(pc),a0
+	moveq	#6,d0
+	lea	palettesw,a2	;dest
+	;
+.loop	lea	palettes,a1
+	movem	(a0)+,d1/d7	;what we're anding, briteness correction
+	;
+	moveq	#15,d2	;16 shades
+	;
+.loop2	move.l	(a1)+,a3	;src
+	move.l	(a2)+,a4	;dest
+	move	#255,d3	;256 colours
+	;
+.loop3	move	(a3)+,d4	;src colour...find briteness
+	;
+	move	d4,d5
+	move	d4,d6
+	and	#$f00,d4
+	lsr	#8,d4
+	and	#$0f0,d5
+	lsr	#4,d5
+	and	#$00f,d6
+	add	d6,d5
+	add	d5,d4
+	add	d7,d4
+	cmp	#16*3,d4
+	bcs.s	.bok
+	moveq	#16*3-1,d4
+.bok	ext.l	d4
+	divu	#3,d4	;(r+g+b)/3=briteness!
+	;
+	move	d4,d5
+	move	d4,d6
+	lsl	#8,d4
+	lsl	#4,d5
+	or	d6,d5
+	or	d5,d4	;RGB
+	and	d1,d4
+	;
+	move	d4,(a4)+
+	dbf	d3,.loop3
+	;
+	dbf	d2,.loop2
+	;
+	dbf	d0,.loop
+	;
+	rts
+
+calcpalettes	;a0=palette!
+	;
+	move.l	map_rgbs(pc),a0
+	;
+	move.l	rgbs(pc),a1
+	move	#255,d0
+	move.l	#$f0000,d1
+	;
+.loop	move	(a0)+,d2
+	;
+	move	d2,d3
+	move	d2,d4
+	and	#$f00,d2
+	lsr	#8,d2
+	move	d2,(a1)+
+	and	#$f0,d3
+	lsr	#4,d3
+	move	d3,(a1)+
+	and	#$f,d4
+	move	d4,(a1)+
+	;
+	dbf	d0,.loop
+	;
+	lea	palettes(pc),a0
+	moveq	#15,d0
+	;
+.loop2	move.l	rgbs(pc),a1
+	move.l	(a0)+,a2
+	move	#255,d1
+	;
+.loop3	movem	(a1),d2-d4	;r,g,b
+	;
+	lsl	#8,d2
+	lsl	#4,d3
+	or	d4,d3
+	or	d3,d2
+	move	d2,(a2)+
+	bne.s	.hmmm
+	move	#$8000,-2(a2)	;no BLACK!
+.hmmm	;
+	;movem	(a1),d2-d4
+	;add	d4,d3
+	;add	d3,d2
+	;cmp	#4,d2
+	;bcc	.do
+	;addq	#6,a1
+	;bra	.bok
+	;
+.do	subq	#1,(a1)+
+	bpl.s	.rok
+	clr	-2(a1)
+	;
+.rok	subq	#1,(a1)+
+	bpl.s	.gok
+	clr	-2(a1)
+	;
+.gok	subq	#1,(a1)+
+	bpl.s	.bok
+	clr	-2(a1)
+.bok	;
+	dbf	d1,.loop3
+	dbf	d0,.loop2
+	rts
+
+calcpalettes2	;a0=palette!
+	;
+	move.l	map_rgbs(pc),a0
+	;
+	move.l	rgbs(pc),a1
+	move	#255,d0
+	move.l	#$f0000,d1
+	;
+.loop	move	(a0)+,d2
+	;
+	move	d2,d3
+	lsl.l	#8,d2
+	and.l	d1,d2
+	move.l	d2,(a1)+	;R
+	;
+	move	d3,d2
+	lsl.l	#8,d2
+	lsl.l	#4,d2
+	and.l	d1,d2
+	move.l	d2,(a1)+	;G
+	;
+	swap	d3
+	and.l	d1,d3
+	move.l	d3,(a1)+	;B
+	;
+	dbf	d0,.loop
+	;
+	lea	palettes(pc),a0
+	moveq	#15,d0
+	;
+.loop2	move.l	rgbs(pc),a1
+	move.l	(a0)+,a2
+	move	#255,d1
+	;
+.loop3	movem.l	(a1),d2-d4
+	lsr.l	#8,d2
+	and	#$f00,d2
+	lsr.l	#8,d3
+	lsr.l	#4,d3
+	and	#$f0,d3
+	swap	d4
+	and	#$f,d4
+	or	d4,d3
+	or	d3,d2
+	move	d2,(a2)+
+	bne.s	.hmmm
+	move	#$8000,-2(a2)
+.hmmm	;
+	move.l	(a1),d2
+	sub.l	#$10000,d2
+	bpl.s	.rok
+	moveq	#0,d2
+.rok	move.l	d2,(a1)+
+	;
+	move.l	(a1),d3
+	sub.l	#$10000,d3
+	bpl.s	.gok
+	moveq	#0,d3
+.gok	move.l	d3,(a1)+
+	;
+	move.l	(a1),d4
+	sub.l	#$10000,d4
+	bpl.s	.bok
+	moveq	#0,d4
+.bok	move.l	d4,(a1)+
+	;	
+	dbf	d1,.loop3
+	dbf	d0,.loop2
+	rts
+
+dispoff	tst	dispnest
+	bne.s	.skip
+	bsr	vwait
+	move	#$01a0,$dff096
+.skip	addq	#1,dispnest
+	rts
+
+dispon	subq	#1,dispnest
+	bgt.s	.skip
+	bsr	vwait
+	move.l	coplist(pc),$dff080
+	move	#$8180,$dff096
+	move	#0,$dff088
+.skip	rts
+
+forbid	push
+	moveq	#49,d0
+.fl	bsr	vwait
+	dbf	d0,.fl
+	bsr	ownblitter
+	move.l	4.w,a6
+	jsr	-132(a6)
+	move	#$8400,$dff096
+	pull
+	rts
+
+permit	push
+	move.l	rawstuff,a0
+	clr.l	$70(a0)
+	move.l	4.w,a6
+	jsr	-138(a6)
+	bsr	disownblitter
+	pull
+	rts
+
+initvbint	push
+	move.l	4.w,a6
+	moveq	#5,d0
+	lea	vbintserver,a1
+	jsr	-168(a6)	;addintserver
+	pull
+	rts
+
+vbcounter	dc	0
+framecnt	dc	0
+
+frame	dc	0,0
+
+vbintserver	dc.l	0,0
+	dc.b	2,0
+	dc.l	0
+vbintdata	dc.l	vbcounter
+vbintcode	dc.l	vbhandler
+
+finitvbint	push
+	move.l	4.w,a6
+	moveq	#5,d0
+	lea	vbintserver,a1
+	jsr	-174(a6)
+	pull
+	rts
+
+ownblitter	push
+	move.l	grbase,a6
+	jsr	-456(a6)
+	btst	#6,$dff002
+.bwait	btst	#6,$dff002
+	bne.s	.bwait
+	pull
+	rts
+
+disownblitter	push
+	btst	#6,$dff002
+.bwait	btst	#6,$dff002
+	bne.s	.bwait
+	move.l	grbase,a6
+	jsr	-462(a6)
+	pull
+	rts
+
+makecoloffs	push
+	;
+	ifne	aga
+	;
+	lea	coloffs,a0
+	moveq	#2,d0
+	moveq	#3,d2
+.loop	addq.l	#4,d0
+	moveq	#31,d1
+.loop2	move.l	d0,(a0)+
+	addq.l	#4,d0
+	dbf	d1,.loop2
+	dbf	d2,.loop
+	;
+	elseif
+	;
+	lea	coloffs,a0
+	moveq	#18,d0
+	moveq	#127,d1
+	;
+.loop	move.l	d0,(a0)+
+	addq.l	#4,d0
+	dbf	d1,.loop
+	;
+	endc
+	;
+	pull
+	rts
+
+grname	dc.b	'graphics.library',0
+	even
+grbase	dc.l	0
+oldview	dc.l	0
+dosname	dc.b	'dos.library',0
+	even
+dosbase	dc.l	0
+
+calcbpos	;also: calc qstripbot, con0poke...
+	;
+	move	window1+wi_h,d0
+	add	d0,d0
+	ext.l	d0
+	add.l	qstrip(pc),d0
+	move.l	d0,qstripbot
+	;
+	move	#$100,con0poke
+	move	floorflag(pc),d0
+	and	roofflag(pc),d0
+	bne.s	.cp
+	move	#$9f0,con0poke	;one of them is cop strip!
+.cp	;
+	move	window1+wi_y,d0
+	subq	#4,d0
+	move	d0,minbpos
+	tst	gametype
+	beq.s	.p1
+	;
+	move	window2+wi_y,d0
+	add	window2+wi_bh,d0
+	addq	#4,d0
+	move	d0,maxbpos
+	rts
+	;
+.p1	move	window1+wi_y,d0
+	add	window1+wi_bh,d0
+	addq	#4,d0
+	move	d0,maxbpos
+	;
+	rts
+
+showwindow	;a0=window
+	;
+	push
+	;
+	ifne	aga
+	;
+	;poke bitmaps...
+	move.l	wi_slice(a0),a1
+	move.l	(a1),a1
+	move.l	wi_bmap(a0),d0
+	moveq	#6,d1	;7 bitplanes
+.loop	move	d0,6(a1)
+	swap	d0
+	move	d0,2(a1)
+	swap	d0
+	add.l	#40,d0
+	addq	#8,a1
+	dbf	d1,.loop
+	;
+	;create DIW
+	;
+	move.l	wi_slice(a0),a1
+	move.l	(a1),a1
+	;
+	move	wi_y(a0),d0
+	move	d0,d1
+	add	wi_bh(a0),d1
+	lsl	#8,d0
+	or	#$81,d0
+	move	d0,56+2(a1)
+	lsl	#8,d1
+	or	#$c1,d1
+	move	d1,56+6(a1)
+	;
+	move	wi_y(a0),d0
+	subq	#3,d0
+	move.b	d0,64(a1)
+	;
+	endc
+	;
+	;create link to next!
+	move.l	wi_nslice(a0),a1
+	move.l	(a1),d0
+	move.l	wi_cop1(a0),a1
+	add.l	wi_copmem(a0),a1
+	move.l	wi_cop2(a0),a2
+	add.l	wi_copmem(a0),a2
+	move	d0,-6(a1)
+	move	d0,-6(a2)
+	swap	d0
+	move	d0,-10(a1)
+	move	d0,-10(a2)
+	;
+	pull
+	;
+showwindowq	;display coplist
+	;
+	move.l	wi_cop(a0),d0
+	move.l	wi_slice(a0),a0
+	move.l	(a0),a0
+	;
+	ifne	aga
+	;
+	move	d0,72+6(a0)
+	swap	d0
+	move	d0,72+2(a0)
+	;
+	elseif
+	;
+	move	d0,6(a0)
+	swap	d0
+	move	d0,2(a0)
+	;
+	endc
+	;
+	rts
+
+finitdisplay	push
+	;
+	move.l	grbase,a6
+	move.l	oldview,a1
+	jsr	-222(a6)	;load view
+	jsr	-270(a6)
+	jsr	-270(a6)
+	move.l	38(a6),$dff080
+	move	#$81a0,$dff096
+	move	#0,$dff088
+	;
+	pull
+	rts
+
+initdisplay	push
+	;
+	lea	grname,a1
+	move.l	4.w,a6
+	jsr	-408(a6)
+	move.l	d0,grbase
+	;
+	move.l	d0,a6
+	move.l	34(a6),oldview
+	sub.l	a1,a1
+	jsr	-222(a6)	;loadview
+	;
+	move.l	#copinitf-copinit,d0
+	moveq	#2,d1
+	allocmem	copinit
+	move.l	d0,coplist
+	;
+	move.l	d0,a1
+	lea	copinit,a0
+	lea	copinitf,a2
+	;
+.loop	cmp.l	a2,a0
+	bcc.s	.done
+	move.l	(a0)+,(a1)+
+	bra.s	.loop
+.done	;
+	add.l	#sl1-copinit,d0
+	move.l	d0,slice1
+	add.l	#sl2-sl1,d0
+	move.l	d0,slice2
+	add.l	#cstop-sl2,d0
+	move.l	d0,copstop
+	;
+	move.l	copstop,d0
+	move.l	slice1,a0
+	move.l	slice2,a1
+	;
+	ifne	aga
+	;
+	move	d0,72+6(a0)
+	move	d0,72+6(a1)
+	swap	d0
+	move	d0,72+2(a0)
+	move	d0,72+2(a1)
+	;
+	elseif
+	;
+	move	d0,6(a0)
+	move	d0,6(a1)
+	swap	d0
+	move	d0,2(a0)
+	move	d0,2(a1)
+	;
+	endc
+	;
+	jsr	-270(a6)
+	jsr	-270(a6)
+	move.l	coplist,$dff080
+	move	#0,$dff088
+	;
+	pull
+	rts
+
+allocwbmap	move	wi_w(a2),d0
+	mulu	wi_pw(a2),d0
+	move	d0,wi_bw(a2)
+	;
+	move	wi_h(a2),d0
+	mulu	wi_ph(a2),d0
+	move	d0,wi_bh(a2)
+	;
+	mulu	#40*7,d0
+	;
+	move.l	#$10002,d1
+	move.l	d0,wi_bmapmem(a2)
+	allocmem	wi_bmap
+	move.l	d0,wi_bmap(a2)
+	;
+	move.l	#40*7*7,d0
+	moveq	#2,d1
+	allocmem	wi_strip
+	move.l	d0,wi_strip(a2)
+	;
+	rts
+
+windowiff	;draw iff into window!
+	;
+	move.l	wi_iff(a2),a0
+	cmp.l	#1,a0
+	bne.s	.do
+	rts
+	;
+.do	move.l	wi_bmap(a2),a1
+	;
+	move	2(a0),d1
+	cmp	#240,d1
+	bcs.s	.skip
+	move	#240,d1
+.skip	move	#120,d2
+	lsr	#1,d1
+	sub	d1,d2
+	mulu	#7*40,d2
+	add.l	d2,a1
+	;
+decodeiff	;for 40 columns...
+	;
+	;a0=trimmed IFF file,
+	;a1=destination bitmap...
+	;
+	move.l	a2,-(a7)
+	moveq	#40,d7
+	;
+	move	(a0)+,d0	;pixel width
+	lsr	#3,d0	;to byte width
+	move	(a0)+,d1	;pixel height
+	cmp	#240,d1
+	bls.s	.hok
+	move	#240,d1
+.hok	subq	#1,d1	;to dbf
+	move	(a0)+,d2	;depth
+	subq	#1,d2	;to dbf
+	addq	#6,a0	;skip header
+	;
+.loop5	move	d2,d5	;depth
+	;
+.loop4	move.l	a1,a2
+	move	d0,d4	;how many bytes in line
+	;
+.loop	moveq	#0,d3
+	move.b	(a0)+,d3
+	bmi.s	.repeat
+	sub	d3,d4
+.loop3	move.b	(a0)+,(a2)+
+	dbf	d3,.loop3
+	bra.s	.skip
+	;
+.repeat	cmp.b	#-128,d3
+	beq.s	.loop
+	neg.b	d3
+	sub	d3,d4
+.loop2	move.b	(a0),(a2)+
+	dbf	d3,.loop2
+	addq	#1,a0
+.skip	subq	#1,d4
+	bgt.s	.loop
+	;
+	add	d7,a1
+	dbf	d5,.loop4
+	dbf	d1,.loop5
+	;
+	move.l	(a7)+,a2
+	rts
+
+plotwbmap	;OK, plot colours on bitmap!
+	;
+	tst.l	wi_iff(a2)
+	bne	windowiff
+	;
+	move.l	wi_bmap(a2),a0
+	move	wi_x(a2),d0
+	move	d0,d1
+	lsr	#3,d0
+	not	d1
+	and	#7,d1
+	moveq	#127,d7	;colour
+	move	wi_w(a2),d6	;width
+	subq	#1,d6
+	;
+.wloop	move	wi_pw(a2),d5
+	subq	#1,d5
+	;
+.wloop2	move	d7,d4
+	moveq	#6,d3
+	;
+.dloop	bclr	d1,0(a0,d0)
+	lsr	#1,d4
+	bcc.s	.dskip
+	bset	d1,0(a0,d0)
+.dskip	lea	40(a0),a0
+	dbf	d3,.dloop
+	;
+	lea	-40*7(a0),a0
+	subq	#1,d1
+	bpl.s	.dskip2
+	moveq	#7,d1
+	addq	#1,d0
+.dskip2	dbf	d5,.wloop2
+	;
+	subq	#1,d7
+	dbf	d6,.wloop
+	;
+	move.l	wi_bmapmem(a2),d0
+	sub.l	#40*7,d0
+	lsr.l	#2,d0
+	subq	#1,d0
+	lea	40*7(a0),a1
+.cbloop	move.l	(a0)+,(a1)+
+	dbf	d0,.cbloop
+	;
+	move.l	wi_bmap(a2),a0
+	move.l	wi_strip(a2),a1
+	move	wi_bh(a2),d0
+	lsr	#2,d0
+	mulu	#7*40,d0
+	add.l	d0,a0
+	move	#7*7*10-1,d2
+	;
+.loop	move.l	(a0)+,(a1)+
+	dbf	d2,.loop
+	;
+	rts
+
+freewindow	;window in a0
+	;
+	push
+	move.l	a0,a2
+	move.l	wi_bmap(a2),d0
+	beq.s	.no1
+	clr.l	wi_bmap(a2)
+	move.l	d0,a1
+	freemem	wi_bmap
+.no1	move.l	wi_strip(a2),d0
+	beq.s	.no2
+	clr.l	wi_strip(a2)
+	move.l	d0,a1
+	freemem	wi_strip
+.no2	move.l	wi_cop1(a2),d0
+	beq.s	.no3
+	clr.l	wi_cop1(a2)
+	move.l	d0,a1
+	freemem	wi_cop
+.no3	pull
+	rts
+
+	ifne	aga
+	;
+agawindow	;
+makewindow	;AGA make window
+	;
+	;a0=window struct!
+	;
+	push
+	;
+	move.l	a0,a2
+	;
+	bsr	allocwbmap
+	bsr	plotwbmap
+	;
+	tst.l	wi_iff(a2)
+	beq	wchunky
+	;
+	;make a palette coplist for the window
+	;
+	;to write 32 colours...
+	;set bank, write hi nybs, set bank, write lo nybs...
+	;=66 copins.
+	;*4=264 total
+	;+1 for final wait +3 for final copjump=268
+	;
+	move.l	#268<<2,d0
+	move.l	d0,wi_copmem(a2)
+	moveq	#2,d1
+	allocmem	wi_iffcop
+	move.l	d0,wi_cop(a2)
+	move.l	d0,wi_cop1(a2)
+	move.l	d0,wi_cop2(a2)
+	move.l	d0,a0	;dest
+	move.l	wi_pal(a2),a1	;palette!
+	;
+	moveq	#0,d0	;bank
+	moveq	#3,d3
+	;
+.loop	move	#$106,(a0)+
+	move	d0,(a0)+
+	move	#$180,d1
+	moveq	#31,d2
+.hiloop	move	d1,(a0)+
+	move	(a1),(a0)+
+	addq	#4,a1
+	addq	#2,d1
+	dbf	d2,.hiloop
+	;
+	lea	-128+2(a1),a1
+	move	#$106,(a0)+
+	bset	#9,d0
+	move	d0,(a0)+
+	bclr	#9,d0
+	move	#$180,d1
+	moveq	#31,d2
+.loloop	move	d1,(a0)+
+	move	(a1),(a0)+
+	addq	#4,a1
+	addq	#2,d1
+	dbf	d2,.loloop
+	subq	#2,a1
+	;
+	add	#$2000,d0	;next bank!
+	dbf	d3,.loop
+	;
+	move.l	#$fffffffe,(a0)+
+	move.l	#$00840000,(a0)+
+	move.l	#$00860000,(a0)+
+	move.l	#$008a0000,(a0)+
+	pull
+	rts
+	;
+wchunky	;how many copins on one line?
+	;
+	move	wi_w(a2),d0
+	move	d0,d1
+	subq	#1,d0
+	lsr	#5,d0	;how many bank changes per line!
+	addq	#3,d0	;1 waits - 1 eor, 1 init bank select
+	add	d1,d0	;+colpokes
+	;
+	move	d0,d1
+	lsl	#2,d1
+	move	d1,wi_copmod(a2)
+	;
+	mulu	wi_h(a2),d0
+	addq	#4,d0	;1 wait and cop jump at end
+	;
+	lsl.l	#2,d0	;4 bytes/copins
+	moveq	#2,d1	;cop in chip
+	move.l	d0,wi_copmem(a2)
+	lsl.l	#1,d0	;2 coplists!
+	allocmem	wi_chunkycop
+	move.l	d0,wi_cop(a2)
+	move.l	d0,wi_cop1(a2)
+	;
+	move.l	d0,a0
+	move	wi_y(a2),d6
+	move	wi_h(a2),d7
+	subq	#1,d7
+	move	#$111,d3	;test colour
+	move	#$8000,d4	;Colour Eor
+	;
+.hloop	;make one copline...
+	;
+	moveq	#127,d0	;colour reg to poke
+	move	wi_w(a2),d1
+	subq	#1,d1
+	;
+.lloop	move	d0,d2
+	addq	#1,d2
+	and	#31,d2
+	bne.s	.notnbank
+	;
+	;new bank....
+	move	d0,d2
+	sub	#31,d2
+	and	#$ffe0,d2
+	lsl	#8,d2
+	or	d4,d2	;eor bank
+	move	#$106,(a0)+	;bank select
+	move	d2,(a0)+
+	;
+.notnbank	move	d0,d2
+	and	#31,d2
+	add	d2,d2
+	add	#$180,d2
+	move	d2,(a0)+	;colour poke
+	move	d3,(a0)+
+	add	#$111,d3
+	subq	#1,d0
+	dbf	d1,.lloop
+	;
+	bsr	.makewait
+	;
+	;ok, now do EOR!
+	move	#$10c,(a0)+
+	move	d4,(a0)+
+	bchg	#15,d4
+	;
+	dbf	d7,.hloop
+	;
+	bsr	.makewait
+	;
+	move.l	#$00840000,(a0)+
+	move.l	#$00860000,(a0)+
+	move.l	#$008a0000,(a0)+
+	;
+	;OK, 1 list created...copy to other!
+	;
+	move.l	wi_cop1(a2),a0
+	move.l	a0,a1
+	add.l	wi_copmem(a2),a1
+	move.l	a1,wi_cop2(a2)
+	move.l	a1,a3
+	;
+.copycop	move.l	(a0)+,(a3)+
+	cmp.l	a1,a0
+	bcs.s	.copycop
+	;
+	pull
+	rts
+
+.makewait	;
+	;make wait ins. at pos d6
+	;
+	subq	#1,d6
+	move.b	d6,(a0)+
+	move.b	#$e1,(a0)+
+	move	#$fffe,(a0)+
+	addq	#1,d6
+	add	wi_ph(a2),d6
+	rts
+
+	elseif
+
+ecswindow
+makewindow	;ECS makewindow...no bitmap needed!
+	;
+	;a0=window struct
+	;
+	push
+	;
+	move.l	a0,a2
+	;
+	;how many copins on one line?
+	;
+	;2 waits...
+	;width moves
+	;1 colour 0 poke...
+	;
+	;=width+3!
+	;
+	move	wi_w(a2),d0
+	addq	#7,d0
+	;
+	move	d0,d1
+	lsl	#2,d1
+	move	d1,wi_copmod(a2)
+	;
+	mulu	wi_h(a2),d0
+	addq	#4,d0	;1 waits at begin and cop jump
+			;at end
+	;
+	lsl.l	#2,d0	;4 bytes/copins
+	moveq	#2,d1	;cop in chip
+	move.l	d0,wi_copmem(a2)
+	lsl.l	#1,d0	;2 coplists!
+	allocmem	wi_chunkycop
+	move.l	d0,wi_cop(a2)
+	move.l	d0,wi_cop1(a2)
+	;
+	move.l	d0,a0
+	move	#$47,d5
+	sub	wi_w(a2),d5
+	add	d5,d5
+	or	#1,d5
+	move	wi_y(a2),d6
+	move	wi_h(a2),d7
+	subq	#1,d7
+	;
+	moveq	#0,d3
+	move	#$fffe,d4
+	bsr	.makewait	;wait!
+	;
+.hloop	;make one copline...
+	cmp	#128,d6
+	ble.s	.yn
+	move.b	#$80,d3
+.yn	;
+	move.l	a0,d2	;prepare jump address
+	addq.l	#8,d2
+	;
+	move	#$084,(a0)+
+	swap	d2
+	move	d2,(a0)+
+	move	#$086,(a0)+
+	swap	d2
+	move	d2,(a0)+
+	;
+	;wait for start X pos...
+	;
+	move.b	d3,(a0)+
+	move.b	d5,(a0)+
+	move	#$80fe,(a0)+
+	;
+	move	wi_w(a2),d1
+	subq	#1,d1
+	;
+.lloop	move.l	#$1800f00,(a0)+
+	dbf	d1,.lloop
+	move	#$180,(a0)+
+	move	#col0,(a0)+
+	;
+	move.b	d3,(a0)+
+	move.b	#$e1,(a0)+
+	move	#$80fe,(a0)+	;wait for end of line!
+	;
+	move	#$ffff,d4	;skip!
+	bsr	.makewait
+	move.l	#$8a0000,(a0)+	;strobe!
+	;
+	dbf	d7,.hloop
+	;
+	move.l	#$00840000,(a0)+
+	move.l	#$00860000,(a0)+
+	move.l	#$008a0000,(a0)+
+	;
+	;OK, 1 list created...copy to other!
+	;
+	move.l	wi_cop1(a2),a0
+	move.l	a0,a1
+	add.l	wi_copmem(a2),a1
+	move.l	a1,wi_cop2(a2)
+	move.l	a1,a3
+	;
+	move.l	a1,d0
+	sub.l	a0,d0
+	;
+.copycop	move.l	(a0)+,(a3)+
+	cmp	#$084,-8(a3)
+	bne.s	.noafix
+	move	-6(a3),d2
+	swap	d2
+	move	-2(a3),d2
+	add.l	d0,d2
+	move	d2,-2(a3)
+	swap	d2
+	move	d2,-6(a3)
+.noafix	cmp.l	a1,a0
+	bcs.s	.copycop
+	;
+	pull
+	rts
+
+.makewait	;
+	;make wait ins. at pos d6
+	;cmp	#256,d6
+	;blt.s	.not256
+	;move.l	#$ffe1fffe,(a0)+
+	;add	wi_ph(a2),d6
+	;rts
+	;
+.not256	move.b	d6,(a0)+
+	move.b	#1,(a0)+
+	move	d4,(a0)+	;wait/skip
+	add	wi_ph(a2),d6
+	rts
+
+	endc
+
+allocmem2_	;
+	;as below, but d2.l = extra mem at start to set aside
+	;
+	push
+	moveq	#16,d3
+	add.l	d2,d3
+	bra.s	amem_
+
+allocmem_	;
+	;d0=size, d1=requirements, a0=text field
+	;
+	;set up node before allocmem for quick freemem:
+	;
+	;00.l : next
+	;04.l : real size
+	;08.l : offset to user mem (normally 16, but CM fucks things up)
+	;12.l : pointer to text field for debugging
+	;
+	push
+	moveq	#16,d3	;offset
+	;
+amem_	move.l	a0,d4
+	add.l	d3,d0
+	;
+	move.l	d0,d2	;len
+	move.l	a0,d4	;text
+	move.l	4.w,a6
+	jsr	-198(a6)
+	tst.l	d0
+	bne.s	.skip
+	;
+	warn	#$f00
+	;
+.skip	move.l	d0,a0
+	move.l	memlist,(a0)	;next
+	move.l	a0,memlist
+	movem.l	d2-d4,4(a0)
+	add.l	d3,a0
+	move.l	a0,d0
+	;
+	pull
+	rts
+
+freememlist	push
+	;
+.more	move.l	memlist,d0
+	beq.s	.done
+	move.l	d0,a2
+	;
+	ifne	debugmem
+	move.l	12(a2),a0	;text field
+	move.l	a0,d2
+	moveq	#-1,d3
+.loop	addq.l	#1,d3
+	tst.b	(a0)+
+	bne.s	.loop
+	;
+	move.l	outhand,d1
+	move.l	dosbase,a6
+	jsr	-48(a6)
+	endc
+	;
+	move.l	a2,a1
+	;
+	move.l	(a1),memlist
+	move.l	4(a1),d0
+	move.l	4.w,a6
+	jsr	-210(a6)
+	bra.s	.more
+	;
+.done	pull
+	rts
+
+freemem_	;
+	;a1=address to free!
+	;
+	push
+	;
+	ifne	debugmem
+	move.l	a0,-(a7)	;error mess
+	elseif
+	endc
+	;
+	move.l	a1,a2	;mem to find!
+	lea	memlist(pc),a1
+	;
+.more	move.l	a1,a0	;prev
+	move.l	(a1),d0
+	beq.s	.err
+	move.l	d0,a1
+	;
+	move.l	a1,a3
+	add.l	8(a3),a3
+	cmp.l	a3,a2
+	bne.s	.more
+	;
+	move.l	(a1),(a0)
+	move.l	4(a1),d0
+	move.l	4.w,a6
+	jsr	-210(a6)
+	bra.s	.done
+	;
+.err	warn	#$ff0
+	ifne	debugmem
+	move.l	(a7),freememerr
+	endc
+.done	;
+	ifne	debugmem
+	addq	#4,a7
+	endc
+	;
+	pull
+	rts
+
+freememerr	dc.l	0
+
+initmap	;map address in map_map...
+	;load in textures, do colour mapping etc.
+	;
+	push
+	;
+	move.l	map_map,a0
+	;
+	move.l	a0,a1
+	add.l	(a0),a1
+	move.l	a1,map_grid
+	;
+	move.l	a0,a1
+	add.l	4(a0),a1
+	move.l	a1,map_poly
+	;
+	move.l	a0,a1
+	add.l	8(a0),a1
+	move.l	a1,map_ppnt
+	;
+	move.l	a0,a1
+	add.l	12(a0),a1
+	move.l	a1,map_anim
+	;
+	move.l	a0,a1
+	add.l	16(a0),a1
+	move.l	a1,map_txts
+	;
+	move.l	map_rgbsfrom,map_rgbsat
+	;
+	pull
+	rts
+
+freetxts	lea	textscrns,a6
+	moveq	#7,d7
+.loop	move.l	(a6)+,d0
+	beq.s	.skip
+	move.l	d0,a1
+	freemem	freetxts
+	clr.l	-4(a6)
+.skip	dbf	d7,.loop
+	rts
+
+loadtxts	push
+	;
+	lea	textures,a4
+	move.l	map_txts,a5	;texture names
+	lea	textscrns,a6
+	moveq	#7,d7
+	;
+.ltl	lea	.temp(pc),a0
+	;
+.ltl2	move.b	(a5)+,(a0)+
+	bne.s	.ltl2
+	moveq	#0,d0
+	cmp.l	#.temp+1,a0
+	beq.s	.notext
+	lea	.temp2(pc),a0
+	moveq	#1,d1
+	jsr	loadfile
+	;
+.notext	move.l	d0,(a6)+	;texture!
+	beq.s	.skip
+	;
+	;do colour mapping stuff!
+	;
+	move.l	d0,-(a7)
+	;
+	move.l	d0,a0
+	add.l	(a0),a0
+	move.l	a0,a2
+	bsr	addpal
+	;
+	move.l	(a7),a0
+	addq	#4,a0
+	move.l	a2,a1
+	bsr	remap
+	;
+	move.l	(a7)+,a0
+	addq	#4,a0
+	moveq	#19,d0
+	move.l	#64*65,d1
+	;
+.mtxt	move.l	a0,(a4)+
+	add.l	d1,a0
+	dbf	d0,.mtxt
+.skip	;
+	dbf	d7,.ltl
+	;
+	pull
+	rts
+
+.temp2	dc.b	'txts/'
+.temp	ds.b	64 
+	even
+
+remapanim	;a0=anim to remap...
+	;
+	push
+	;
+	move.l	a0,a6
+	movem	(a6),d6-d7
+	lsl	d6,d7	;how many frames!
+	subq	#1,d7
+	;
+	move.l	a6,a0
+	add.l	an_pal(a0),a0
+	bsr	addpal
+	;
+	lea	an_size(a6),a5
+	;
+.loop	move.l	a6,a0
+	add.l	(a5)+,a0	;start of shape
+	addq	#4,a0	;skip handles
+	movem	(a0)+,d0-d1	;w/h
+	mulu	d1,d0
+	lea	0(a0,d0.l),a1	;end
+	bsr	remap
+	;
+	dbf	d7,.loop
+	;
+	pull
+	rts
+	
+remap	;a0=start of byte data, a1=end of byte data
+	;
+	push
+	;
+	moveq	#0,d0
+	move.l	maptable,a2
+	;
+.loop	cmp.l	a1,a0
+	bcc.s	.done
+	move.b	(a0),d0
+	move.b	0(a2,d0),(a0)+
+	bra.s	.loop
+.done	;
+	pull
+	rts
+
+addpal	;add palette in a0 to end of map_rgb
+	;
+	push
+	;
+	move	(a0)+,d0
+	subq	#1,d0
+	move.l	map_rgbsat,a2	;end of rgbs
+	move.l	maptable,a3
+	;
+	clr.b	(a3)	;0=0
+	move.b	#255,255(a3)	;-1=-1
+	move.b	#254,254(a3)	;-1=-1
+	move.b	#253,253(a3)	;-1=-1
+	move.b	#252,252(a3)	;-1=-1
+	move.b	#251,251(a3)	;-1=-1
+	move.b	#250,250(a3)	;-1=-1
+	move.b	#249,249(a3)	;-1=-1
+	;
+	moveq	#1,d2	;colour 1!
+	;
+.loop	move	(a0)+,d1	;colour...does it exist?
+	bmi.s	.next	;not used!
+	move.l	map_rgbs,a1
+	;
+.loop2	cmp.l	a2,a1
+	bcc.s	.no
+	cmp	(a1)+,d1
+	beq.s	.yes
+	bra.s	.loop2
+	;
+.no	;colour doesn't exist!
+	;may have to do a 'near match' routine if we run out of colours
+	;
+	move	d1,(a2)+
+	move.l	a2,a1
+	;
+.yes	subq	#2,a1
+	sub.l	map_rgbs,a1
+	move.l	a1,d1
+	lsr	#1,d1	;real colour
+	;
+	cmp	#256,d1
+	bcs.s	.ok
+	;
+	warn	#$00f
+	;
+.ok	move.b	d1,0(a3,d2)
+	;
+.next	addq	#1,d2
+	dbf	d0,.loop
+	;
+	move.l	a2,map_rgbsat
+	;
+	pull
+	rts
+
+	;coll types...
+	;
+	;1...bullet from player 1
+	;2...bullet from player 2
+	;4...bullet from monster
+	;8...player 1
+	;16..player 2
+	;
+
+	dc.l	0,player,tokens
+	;
+objlist	;list of objects to be freed...
+	;
+	dc.l	marine,baldy,0
+
+player	dc.l	0,0	;main, chunks
+	dc.b	'objs/player',0,0
+	even
+tokens	dc.l	0,0
+	dc.b	'objs/tokens',0,0
+	even
+marine	dc.l	0,0
+	dc.b	'objs/marine',0,0
+	even
+baldy	dc.l	0,0
+	dc.b	'objs/baldy',0,0
+	even
+terra	dc.l	0,0
+	dc.b	'objs/terra',0,0
+	even
+demon	dc.l	0,0
+	dc.b	'objs/demon',0,0
+	even
+
+objinfo
+player1_	dc.l	player1
+.ob_rotspeed	dc.l	$40000
+.ob_movspeed	dc.l	$d0000
+_ob_shape	dc.l	player
+.ob_logic	dc.l	playerlogic
+.ob_render	dc.l	drawshape_8
+.ob_hit	dc.l	playerhit
+.ob_die	dc.l	playerdie
+	;
+.ob_eyey	dc	-110	;eye height
+.ob_firey	dc	-60	;where bullets come from
+.ob_gutsy	dc	-64
+.ob_othery	dc	0
+.ob_colltype	dc	8
+p1_ob_collwith	dc	6	;6=combat, 4=game
+p1_ob_cntrl	dc	1	;for player 0,1=joyport, 2=keys
+.ob_damage	dc	1
+.ob_hitpoints	dc	25
+.ob_think	dc	0
+.ob_frame	dc.l	0
+.ob_framespeed	dc.l	$6000
+.ob_base	dc	1
+.ob_range	dc	1
+.ob_weapon	dc	0	;weapon type...0...25
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_punchrate	dc	0
+.ob_bouncecnt	dc	0	;4!
+.ob_something	dc	0
+.ob_scale	dc	$200
+.ob_apad	dc	0
+;
+objinfof
+
+oilen	equ	objinfof-objinfo
+
+player2_	dc.l	player2
+.ob_rotspeed	dc.l	$40000
+.ob_movspeed	dc.l	$d0000
+.ob_shape	dc.l	player
+.ob_logic	dc.l	playerlogic
+.ob_render	dc.l	drawshape_8
+.ob_hit	dc.l	playerhit
+.ob_die	dc.l	playerdie
+.ob_eyey	dc	-110	;eye height
+.ob_firey	dc	-60	;where bullets come from
+.ob_gutsy	dc	-64
+.ob_othery	dc	0
+.ob_colltype	dc	16
+p2_ob_collwith	dc	5	;5=combat, 4=game
+p2_ob_cntrl	dc	0	;for player 0,1=joyport, 2=keys
+.ob_damage	dc	1
+.ob_hitpoints	dc	25
+.ob_think	dc	0
+.ob_frame	dc.l	0
+.ob_framespeed	dc.l	$6000
+.ob_base	dc	1
+.ob_range	dc	1
+.ob_weapon	dc	0	;weapon type...
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_punchrate	dc	0
+.ob_bouncecnt	dc	0	;4!
+.ob_something	dc	0
+.ob_scale	dc	$200
+.ob_apad	dc	0
+
+health_	dc.l	dummy
+.ob_rotspeed	dc.l	0
+.ob_movspeed	dc.l	0
+.ob_shape	dc.l	tokens
+.ob_logic	dc.l	rts
+.ob_render	dc.l	drawshape_1
+.ob_hit	dc.l	healthgot
+.ob_die	dc.l	healthgot
+.ob_eyey	dc	0	;eye height
+.ob_firey	dc	0	;where bullets come from
+.ob_gutsy	dc	0
+.ob_othery	dc	0
+.ob_colltype	dc	0
+.ob_collwith	dc	24
+.ob_cntrl	dc	0	;for player 0,1=joyport
+.ob_damage	dc	0
+.ob_hitpoints	dc	0
+.ob_think	dc	0
+.ob_frame	dc.l	$30000
+.ob_framespeed	dc.l	0
+.ob_base	dc	0
+.ob_range	dc	0
+.ob_weapon	dc	0
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_punchrate	dc	0
+.ob_bouncecnt	dc	0
+.ob_something	dc	0
+.ob_scale	dc	$200
+.ob_apad	dc	0
+
+weapon_	dc.l	dummy
+.ob_rotspeed	dc.l	0
+.ob_movspeed	dc.l	0
+.ob_shape	dc.l	tokens
+.ob_logic	dc.l	rts
+.ob_render	dc.l	drawshape_1
+.ob_hit	dc.l	weapongot
+.ob_die	dc.l	weapongot
+.ob_eyey	dc	0	;eye height
+.ob_firey	dc	0	;where bullets come from
+.ob_gutsy	dc	0
+.ob_othery	dc	0
+.ob_colltype	dc	0
+.ob_collwith	dc	24
+.ob_cntrl	dc	0	;for player 0,1=joyport
+.ob_damage	dc	0
+.ob_hitpoints	dc	0
+.ob_think	dc	0
+.ob_frame	dc.l	$50000
+.ob_framespeed	dc.l	0
+.ob_base	dc	0
+.ob_range	dc	0
+.ob_weapon	dc	0
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_punchrate	dc	0
+.ob_bouncecnt	dc	0
+.ob_something	dc	0
+.ob_scale	dc	$200
+.ob_apad	dc	0
+
+thermo_	dc.l	dummy
+.ob_rotspeed	dc.l	0
+.ob_movspeed	dc.l	0
+.ob_shape	dc.l	tokens
+.ob_logic	dc.l	rts
+.ob_render	dc.l	drawshape_1
+.ob_hit	dc.l	thermogot
+.ob_die	dc.l	thermogot
+.ob_eyey	dc	0	;eye height
+.ob_firey	dc	0	;where bullets come from
+.ob_gutsy	dc	0
+.ob_othery	dc	0
+.ob_colltype	dc	0
+.ob_collwith	dc	24
+.ob_cntrl	dc	0	;for player 0,1=joyport
+.ob_damage	dc	0
+.ob_hitpoints	dc	0
+.ob_think	dc	0
+.ob_frame	dc.l	$10000
+.ob_framespeed	dc.l	0
+.ob_base	dc	0
+.ob_range	dc	0
+.ob_weapon	dc	0
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_punchrate	dc	0
+.ob_bouncecnt	dc	0
+.ob_something	dc	0
+.ob_scale	dc	$200
+.ob_apad	dc	0
+
+infra_	ds.b	oilen
+
+invisi_	dc.l	dummy
+.ob_rotspeed	dc.l	0
+.ob_movspeed	dc.l	0
+.ob_shape	dc.l	tokens
+.ob_logic	dc.l	rts
+.ob_render	dc.l	drawshape_1
+.ob_hit	dc.l	invisigot
+.ob_die	dc.l	invisigot
+.ob_eyey	dc	0	;eye height
+.ob_firey	dc	0	;where bullets come from
+.ob_gutsy	dc	0
+.ob_othery	dc	0
+.ob_colltype	dc	0
+.ob_collwith	dc	24
+.ob_cntrl	dc	0	;for player 0,1=joyport
+.ob_damage	dc	0
+.ob_hitpoints	dc	0
+.ob_think	dc	0
+.ob_frame	dc.l	$20000
+.ob_framespeed	dc.l	0
+.ob_base	dc	0
+.ob_range	dc	0
+.ob_weapon	dc	0
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_punchrate	dc	0
+.ob_bouncecnt	dc	0
+.ob_something	dc	0
+.ob_scale	dc	$200
+.ob_apad	dc	0
+
+invinc_	ds.b	oilen
+
+blank1_	ds.b	oilen
+
+blank2_	ds.b	oilen
+
+marine_	dc.l	dummy
+.ob_rotspeed	dc.l	$30000
+.ob_movspeed	dc.l	$60000
+.ob_shape	dc.l	marine
+.ob_logic	dc.l	monsterlogic
+.ob_render	dc.l	drawshape_8
+.ob_hit	dc.l	hurtngrunt
+.ob_die	dc.l	blowobject
+.ob_eyey	dc	-64	;eye height
+.ob_firey	dc	-60	;where bullets come from
+.ob_gutsy	dc	-64
+.ob_othery	dc	0
+.ob_colltype	dc	0
+.ob_collwith	dc	3
+.ob_cntrl	dc	0	;for player 0,1=joyport
+.ob_damage	dc	1
+.ob_hitpoints	dc	5
+.ob_think	dc	0
+.ob_frame	dc.l	0
+.ob_framespeed	dc.l	$6000
+.ob_base	dc	16
+.ob_range	dc	32
+.ob_weapon	dc	0	;weapon type...
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_punchrate	dc	0
+.ob_bouncecnt	dc	0
+.ob_something	dc	0
+.ob_scale	dc	$200
+.ob_apad	dc	0
+
+baldy_	dc.l	dummy
+.ob_rotspeed	dc.l	$30000
+.ob_movspeed	dc.l	$40000
+.ob_shape	dc.l	baldy
+.ob_logic	dc.l	baldylogic
+.ob_render	dc.l	drawshape_8
+.ob_hit	dc.l	hurtngrunt
+.ob_die	dc.l	blowobject
+.ob_eyey	dc	-64	;eye height
+.ob_firey	dc	-60	;where bullets come from
+.ob_gutsy	dc	-64
+.ob_othery	dc	0
+.ob_colltype	dc	0
+.ob_collwith	dc	24+3
+.ob_cntrl	dc	0	;for player 0,1=joyport
+.ob_damage	dc	2
+.ob_hitpoints	dc	10
+.ob_think	dc	0
+.ob_frame	dc.l	0
+.ob_framespeed	dc.l	$4000
+.ob_base	dc	8
+.ob_range	dc	16
+.ob_weapon	dc	0	;weapon type...
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	3
+.ob_punchrate	dc	4
+.ob_bouncecnt	dc	0
+.ob_something	dc	0
+.ob_scale	dc	$220
+.ob_apad	dc	0
+
+terra_	dc.l	dummy
+.ob_rotspeed	dc.l	$30000
+.ob_movspeed	dc.l	$20000
+.ob_shape	dc.l	terra
+.ob_logic	dc.l	terralogic
+.ob_render	dc.l	drawshape_8
+.ob_hit	dc.l	hurtngrunt
+.ob_die	dc.l	blowobject
+.ob_eyey	dc	-64	;eye height
+.ob_firey	dc	-60	;where bullets come from
+.ob_gutsy	dc	-64
+.ob_othery	dc	0
+.ob_colltype	dc	0
+.ob_collwith	dc	3
+.ob_cntrl	dc	0	;for player 0,1=joyport
+.ob_damage	dc	1
+.ob_hitpoints	dc	12
+.ob_think	dc	0
+.ob_frame	dc.l	0
+.ob_framespeed	dc.l	$6000
+.ob_base	dc	32
+.ob_range	dc	48
+.ob_weapon	dc	0	;weapon type...
+.ob_wlevel	dc	0
+.ob_hurtpause	dc	5
+.ob_firerate	dc	12	;how often terra fires
+.ob_bouncecnt	dc	0	;how many times
+.ob_firecnt	dc	5
+.ob_scale	dc	$280
+.ob_apad	dc	0
+
+abouttext	dc.b	14
+	dc.b	'GLOOM',0
+	dc.b	0
+	dc.b	'A BLACK MAGIC GAME',0
+	dc.b	0
+	dc.b	'PROGRAMMED BY MARK SIBLY',0
+	dc.b	'GRAPHICS BY THE BUTLER BROTHERS',0
+	dc.b	'MUSIC BY KEV STANNARD',0
+	dc.b	'AUDIO BY US',0
+	dc.b	'PRODUCED BY US',0
+	dc.b	'DESIGNED BY US',0
+	dc.b	'GAME CODED IN DEVPAC2',0
+	dc.b	'UTILITIES CODED IN BLITZ BASIC 2',0
+	dc.b	'RENDERED IN DPAINT3 AND DPAINT4',0
+	dc.b	'DECRUNCHING CODE BY THOMAS SCHWARZ',0
+	even
+
+sqrinc	incbin	sqr.bin
+
+groundtile	incbin	tile2.bin
+ceilingtile	incbin	tile.bin
+
+bullet1	incbin	bullet1.bin
+bullet2	incbin	bullet2.bin
+bullet3	incbin	bullet3.bin
+bullet4	incbin	bullet4.bin
+bullet5	incbin	bullet5.bin
+
+sparks1	incbin	sparks1.bin
+sparks2	incbin	sparks2.bin
+sparks3	incbin	sparks3.bin
+sparks4	incbin	sparks4.bin
+sparks5	incbin	sparks5.bin
+
+gloombrush	incbin	gloombrush
+
+gloom	incbin	title
+gloompal	incbin	title.pal
+
+combat	incbin	combat
+combatpal	incbin	combat.pal
+
+medplayer	incbin	medplay
+
+rgbs16	ds.w	32
+
+map_rgbs_	ds.w	256
+
+decrm	incbin	decrm

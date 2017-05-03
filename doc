@@ -1,0 +1,23 @@
+
+                     spacehulk (maps 1_1..1_8)
+                     *************************
+
+monsters: marine, baldy, terra
+
+firepower: red, green, darkgreen
+
+
+                           gothic tomb
+                           ***********
+
+monsters: lizard, ghoul, phantom, deathhead
+
+firepower: red, green, darkgreen, lightblue
+
+
+                              hell
+                              ****
+
+monsters: any!
+
+firepower: all!

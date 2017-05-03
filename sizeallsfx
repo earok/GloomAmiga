@@ -1,0 +1,10 @@
+
+sizesfx sfxs2/grunt2.bin 8192 sfxs/grunt2.bin
+
+sizesfx sfxs2/door.bin 16384 sfxs/door.bin
+
+sizesfx sfxs2/shoot2.bin 8192 sfxs/shoot2.bin
+sizesfx sfxs2/shoot3.bin 8192 sfxs/shoot3.bin
+sizesfx sfxs2/shoot4.bin 8192 sfxs/shoot4.bin
+sizesfx sfxs2/shoot2.bin 8192 sfxs/shoot5.bin
+
